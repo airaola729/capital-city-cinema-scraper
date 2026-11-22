@@ -1,7 +1,7 @@
 {
-  "runAt": "2026-11-22T18:33:29.804Z",
+  "runAt": "2026-11-22T19:27:45.813Z",
   "today": "2026-11-22",
-  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45055717789",
+  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45060846940",
   "afiSpecials": {
     "ok": true,
     "dataDate": "2026-11-22",
@@ -9,58 +9,11 @@
     "error": null
   },
   "sources": {
-    "alamo": {
-      "ok": true,
-      "ms": 164,
-      "summary": {
-        "alamo-dc": "10 films today, 40 days",
-        "alamo-cc": "9 films today, 40 days"
-      }
-    },
-    "miracle": {
-      "ok": true,
-      "ms": 4085,
-      "summary": {
-        "events": 12,
-        "days": 9,
-        "today": 0
-      }
-    },
-    "fever": {
-      "ok": true,
-      "ms": 113869,
-      "summary": {
-        "hoffman": "24 films today, 15 dates read",
-        "tysons": "15 films today, 15 dates read",
-        "georgetown": "12 films today, 15 dates read"
-      }
-    },
-    "angelika": {
-      "ok": true,
-      "ms": 3247,
-      "summary": {
-        "today": 3,
-        "days": 1,
-        "soon": 12
-      }
-    },
-    "afi": {
-      "ok": true,
-      "ms": 25677,
-      "summary": {
-        "films": 100,
-        "errs": 0,
-        "today": 10,
-        "days": 33
-      }
-    },
-    "4eye": {
-      "ok": true,
-      "ms": 5005,
-      "summary": {
-        "rows": 15,
-        "today": 2
-      }
+    "smithsonian": {
+      "ok": false,
+      "error": "bot check page (HTTP 403, title \"Just a moment...\")",
+      "blocked": true,
+      "ms": 2712
     }
   },
   "theaters": {
@@ -135,6 +88,22 @@
       "filmsToday": 2,
       "days": 9,
       "error": null
+    },
+    "si-lockheed": {
+      "ok": false,
+      "dataDate": null,
+      "source": "smithsonian",
+      "filmsToday": 0,
+      "days": 0,
+      "error": "bot check page (HTTP 403, title \"Just a moment...\")"
+    },
+    "si-airbus": {
+      "ok": false,
+      "dataDate": null,
+      "source": "smithsonian",
+      "filmsToday": 0,
+      "days": 0,
+      "error": "bot check page (HTTP 403, title \"Just a moment...\")"
     }
   }
 }
