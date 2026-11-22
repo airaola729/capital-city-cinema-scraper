@@ -1,0 +1,32 @@
+name: Save source samples (manual, temporary)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install Playwright
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Sample
+        run: node scripts/sample.mjs
+      - name: Push samples branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan samples
+          git rm -rq --cached .
+          git add samples
+          git commit -qm "samples $(date -u +%FT%TZ)"
+          git push -f origin samples
