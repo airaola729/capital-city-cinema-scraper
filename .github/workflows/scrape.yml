@@ -2,7 +2,7 @@ name: Scrape showtimes
 
 on:
   schedule:
-    - cron: '5 13 * * *'   # 13:05 UTC = 8:05 EST / 9:05 EDT
+    - cron: '47 10 * * *'   # 10:47 UTC = 5:47 EST / 6:47 EDT (early, so the watchdog has time to fix problems before the 10:17 ET publish)
   workflow_dispatch:
     inputs:
       only:
@@ -50,3 +50,8 @@ jobs:
             git pull --rebase origin main
             git push origin HEAD:main
           fi
+
+      # Runs after the data commit. Fails the run (so GitHub notifies the owner and the
+      # watchdog sees it) when any theater or the AFI specials isn't current for today.
+      - name: Check freshness
+        run: node scripts/check-fresh.mjs

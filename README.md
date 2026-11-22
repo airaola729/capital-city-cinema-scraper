@@ -1,6 +1,6 @@
 # capital-city-cinema-scraper
 
-Daily showtimes data for Capital City Cinema. A GitHub Actions workflow (`.github/workflows/scrape.yml`) runs every morning at 13:05 UTC (8:05 EST / 9:05 EDT) and commits the results to `data/`. The Claude scheduled task reads these files about an hour later. Nothing has to be running at home.
+Daily showtimes data for Capital City Cinema. A GitHub Actions workflow (`.github/workflows/scrape.yml`) runs every morning at 10:47 UTC (5:47 EST / 6:47 EDT) and commits the results to `data/`. The Claude scheduled task reads these files at 10:17 ET. Nothing has to be running at home.
 
 ## Sources
 
@@ -30,6 +30,12 @@ A theater is current only when `ok` is true and `dataDate` equals today's date i
 The scraper never tries to get past a CAPTCHA or bot check. A challenge is recorded as `blocked`, and that source is skipped for the run.
 
 To run it by hand, use **Actions → Scrape showtimes → Run workflow**. You can limit a run to some sources. **Actions → Probe sources** checks whether candidate sources are reachable.
+
+## Monitoring
+
+- The workflow's last step (`scripts/check-fresh.mjs`) fails the run when any theater, or the AFI specials, isn't current for today. The data is still committed first, so the site keeps the last good data for a broken source.
+- A daily Claude watchdog task runs about an hour after the scrape (11:43 UTC), well before the 10:17 ET publish. It checks the run, re-runs a failed source once, and, if the source still fails, diagnoses it, tests a fix on a branch and merges it only if the test run validates. It also checks the previous day's publish and the live site, and reports problems to Abel. It never tries to get past a bot check.
+- `monitor/status-log.md` gets one line per day from the watchdog: the GitHub pipeline's result and the legacy PC-browser test's result, for comparing the two methods.
 
 ## Archive
 
