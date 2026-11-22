@@ -1,0 +1,12 @@
+{
+  "name": "capital-city-cinema-scraper",
+  "private": true,
+  "type": "module",
+  "description": "Daily showtimes scraper for Capital City Cinema (Atom Tickets, 4EYE Film Center, AFI Silver).",
+  "scripts": {
+    "scrape": "node scrape.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}
