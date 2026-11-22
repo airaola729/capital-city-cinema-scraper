@@ -1,9 +1,9 @@
 {
-  "runAt": "2026-11-22T17:08:13.977Z",
+  "runAt": "2026-11-22T17:12:31.117Z",
   "today": "2026-11-22",
   "mode": "headed",
   "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/159.0.0.0 Safari/537.36",
-  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45047681851",
+  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45048097088",
   "note": "A source is current only if sources[name].ok is true and sources[name].dataDate equals today (ET). Failed sources keep their last good file; dataDate/dataAt say when that file was written.",
   "sources": {
     "atom": {
@@ -11,42 +11,27 @@
       "file": "atom.json",
       "dataDate": null,
       "dataAt": null,
-      "error": "all six theaters failed — hoffman: 0 films, selected date none; tysons: 0 films, selected date none; georgetown: 0 films, selected date none; alamo-dc: 0 films, selected date none; alamo-cc: 0 films, selected date none; afi: 0 films, selected date none",
+      "error": "all six theaters failed — hoffman: 0 films, selected date none; tysons: 0 films, selected date none; georgetown: 0 films, selected date none; alamo-dc: 0 films, selected date none; alamo-cc: 0 films, selected date none; afi: 0 films, selected date none — probe {\"status\":403,\"len\":6088,\"title\":\"Just a moment...\",\"panels\":0,\"serverFormat\":false,\"challenge\":true,\"pageUrl\":\"https://www.atomtickets.com/theaters/amc-georgetown-14/8353\",\"pagePanels\":29,\"pageServerFormat\":true}",
       "blocked": false,
-      "ms": 85
+      "ms": 72
     },
     "atom-presale-formats": {
-      "ok": true,
+      "ok": false,
       "file": "atom-presale-formats.json",
       "dataDate": "2026-11-22",
       "dataAt": "2026-11-22T17:08:13.977Z",
-      "error": null,
-      "summary": {
-        "n": 0,
-        "fail": 0,
-        "hits": 0
-      },
-      "notes": [],
-      "ms": 27
+      "error": "no presale links found and the main Atom read did not succeed this run, so the result is not trustworthy",
+      "blocked": false,
+      "ms": 21
     },
     "atom-day-by-day": {
-      "ok": true,
+      "ok": false,
       "file": "atom-day-by-day.json",
       "dataDate": "2026-11-22",
       "dataAt": "2026-11-22T17:08:13.977Z",
-      "error": null,
-      "summary": {
-        "miracle": {
-          "today": null,
-          "days": 0
-        },
-        "angelika": {
-          "today": null,
-          "days": 0
-        }
-      },
-      "notes": [],
-      "ms": 25
+      "error": "both theaters failed — miracle: ERR no dates found on the theater page; angelika: ERR no dates found on the theater page",
+      "blocked": false,
+      "ms": 54
     },
     "4eye": {
       "ok": true,
