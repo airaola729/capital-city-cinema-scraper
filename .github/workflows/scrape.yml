@@ -47,8 +47,9 @@ jobs:
             echo "No data changes."
           else
             git commit -m "data: $(TZ=America/New_York date +%F)"
-            git pull --rebase origin main
-            git push origin HEAD:main
+            # Push to the branch being run (main for the daily run; a test branch for a watchdog fix).
+            git pull --rebase origin "$GITHUB_REF_NAME"
+            git push origin "HEAD:$GITHUB_REF_NAME"
           fi
 
       # Runs after the data commit. Fails the run (so GitHub notifies the owner and the
