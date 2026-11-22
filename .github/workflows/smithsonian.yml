@@ -1,0 +1,54 @@
+name: Scrape Smithsonian IMAX (home runner)
+
+# si.edu sends a Cloudflare check to GitHub's servers, so this job runs on a self-hosted runner on Abel's PC,
+# where si.edu loads like it does for any visitor. If the PC is off, GitHub holds the job and runs it when the
+# runner comes back online (it gives up after 24 hours). It never tries to get past a bot check: a challenge is
+# recorded as blocked in data/smithsonian.json.
+on:
+  schedule:
+    - cron: '20 10 * * *'   # 10:20 UTC, before the GitHub scrape and well before the 10:17 ET publish
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: smithsonian
+  cancel-in-progress: true
+
+jobs:
+  smithsonian:
+    runs-on: [self-hosted, ccc-home]
+    timeout-minutes: 20
+    env:
+      ONLY: smithsonian
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install Playwright
+        shell: bash
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install chromium
+
+      - name: Scrape
+        shell: bash
+        run: node scrape.mjs
+
+      - name: Commit data
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/smithsonian.json
+          if git diff --cached --quiet; then
+            echo "No data changes."
+          else
+            git commit -m "data: smithsonian $(node -e "process.stdout.write(new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'}))")"
+            git pull --rebase origin "$GITHUB_REF_NAME"
+            git push origin "HEAD:$GITHUB_REF_NAME"
+          fi

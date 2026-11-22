@@ -8,7 +8,10 @@
 //   afi                       AFI Silver's own site (also saved raw as data/afi.json for the specials)
 //   4eye                      4EYE Film Center's own site
 //   si-lockheed, si-airbus    Smithsonian Theaters' own pages (Lockheed Martin IMAX on the Mall, Airbus IMAX at
-//                             Udvar-Hazy); only feature films (75+ minutes) are kept, not the museum documentaries
+//                             Udvar-Hazy); only feature films (75+ minutes) are kept, not the museum documentaries.
+//                             si.edu sends GitHub's servers a Cloudflare check, so this source is opt-in (ONLY=smithsonian)
+//                             and runs on a self-hosted runner at home (.github/workflows/smithsonian.yml). It writes
+//                             data/smithsonian.json and leaves showtimes.json and meta.json alone.
 //
 // Output: data/showtimes.json (normalized per theater, per day), data/afi.json, data/meta.json.
 // A theater whose source fails keeps its previous entry with ok:false; a theater is current only
@@ -43,14 +46,15 @@ const FEVER_THEATERS = { hoffman: 'amc-hoffman-center-22', tysons: 'amc-tysons-c
 const SI_TERMS = { 'si-lockheed': 52, 'si-airbus': 53 };   // si.edu taxonomy terms of the two IMAX theaters
 const SI_DAYS = 15;                                          // the Smithsonian posts showtimes about two weeks ahead
 const SI_MIN_RUNTIME = 75;                                   // museum documentaries run 25-50 minutes; features 90+
-const THEATERS = ['hoffman', 'tysons', 'georgetown', 'alamo-dc', 'alamo-cc', 'afi', 'miracle', 'angelika', '4eye', 'si-lockheed', 'si-airbus'];
+const THEATERS = ['hoffman', 'tysons', 'georgetown', 'alamo-dc', 'alamo-cc', 'afi', 'miracle', 'angelika', '4eye'];
+const OPT_IN = ['smithsonian'];   // sources that only run when named in ONLY
 const SOURCE_OF = { hoffman: 'fever', tysons: 'fever', georgetown: 'fever', 'alamo-dc': 'alamo', 'alamo-cc': 'alamo', afi: 'afi', miracle: 'miracle', angelika: 'angelika', '4eye': '4eye', 'si-lockheed': 'smithsonian', 'si-airbus': 'smithsonian' };
 
 const today = new Date().toLocaleDateString('en-CA', { timeZone: ET });
 const addDays = (d, n) => new Date(Date.parse(d + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const want = src => !ONLY.length || ONLY.includes(src);
+const want = src => ONLY.length ? ONLY.includes(src) : !OPT_IN.includes(src);
 class BlockedError extends Error {}
 
 // ---------------------------------------------------------------------------
@@ -519,6 +523,21 @@ async function main() {
     } finally { await page.close().catch(() => {}); }
   });
   if (browser) await browser.close().catch(() => {});
+
+  // Smithsonian theaters go to their own file (written by the home runner), merged like the others.
+  if (want('smithsonian')) {
+    const prevSi = (await readJSON(path.join(DATA_DIR, 'smithsonian.json'))) || { theaters: {} };
+    const siTheaters = {};
+    for (const tid of Object.keys(SI_TERMS)) {
+      const r = results[tid], p = prevSi.theaters?.[tid] || {};
+      const base = { source: 'smithsonian' };
+      if (!r || r.error) siTheaters[tid] = { ...base, ok: false, dataDate: p.dataDate || null, fetchedAt: p.fetchedAt || null, error: (r && r.error) || 'not run', blocked: !!(r && r.blocked), days: p.days || {}, soon: p.soon || [] };
+      else siTheaters[tid] = { ...base, ok: true, dataDate: today, fetchedAt: runAt, error: null, days: r.days, soon: r.soon || [] };
+    }
+    await writeFile(path.join(DATA_DIR, 'smithsonian.json'), JSON.stringify({ today, updatedAt: runAt, status: status.smithsonian || null, note: 'Same shape as showtimes.json theaters. Feature films only (75+ minutes).', theaters: siTheaters }) + '\n');
+    log(`smithsonian: ${Object.entries(siTheaters).map(([k, v]) => `${k}:${v.ok ? v.days?.[today]?.length || 0 : 'X ' + v.error}`).join(' ')}`);
+    if (ONLY.length && ONLY.every(s => OPT_IN.includes(s))) return;   // home-runner run: leave the other files alone
+  }
 
   // Merge with the previous file: failed or skipped theaters keep their last good data.
   const prev = (await readJSON(path.join(DATA_DIR, 'showtimes.json'))) || { theaters: {} };

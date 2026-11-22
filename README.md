@@ -14,7 +14,7 @@ Each theater has its own source, and every source is readable from GitHub's serv
 | The Miracle Theatre | Its own site's event list |
 | AFI Silver | Its own site (also saved raw as `data/afi.json` for the specials) |
 | 4EYE Film Center | Its own site |
-| Smithsonian Lockheed Martin IMAX (National Air and Space Museum), Airbus IMAX (Udvar-Hazy Center) | Smithsonian Theaters' own daily pages; only feature films (75+ minutes) are kept, not the museum documentaries |
+| Smithsonian Lockheed Martin IMAX (National Air and Space Museum), Airbus IMAX (Udvar-Hazy Center) | Smithsonian Theaters' own daily pages; only feature films (75+ minutes) are kept. Runs on a self-hosted runner at home (`smithsonian.yml`), because si.edu challenges GitHub's servers; output is `data/smithsonian.json` |
 
 Atom Tickets was the original source, but Cloudflare challenges it from GitHub's servers, so it was dropped (Nov 2026; the old code is in the git history).
 
