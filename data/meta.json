@@ -1,81 +1,140 @@
 {
-  "runAt": "2026-11-22T17:18:17.253Z",
+  "runAt": "2026-11-22T17:49:34.964Z",
   "today": "2026-11-22",
-  "mode": "headless",
-  "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/159.0.8154.6 Safari/537.36",
-  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45048641446",
-  "note": "A source is current only if sources[name].ok is true and sources[name].dataDate equals today (ET). Failed sources keep their last good file; dataDate/dataAt say when that file was written.",
+  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45051560508",
+  "afiSpecials": {
+    "ok": true,
+    "dataDate": "2026-11-22",
+    "films": 98,
+    "error": null
+  },
   "sources": {
-    "atom": {
+    "alamo": {
       "ok": true,
-      "file": "atom.json",
-      "dataDate": "2026-11-22",
-      "dataAt": "2026-11-22T17:16:30.351Z",
-      "error": null,
+      "ms": 421,
       "summary": {
-        "hoffman": 75,
-        "tysons": "ERR",
-        "georgetown": "ERR",
-        "alamo-dc": "ERR",
-        "alamo-cc": "ERR",
-        "afi": "ERR"
-      },
-      "notes": [
-        "failed tysons: ERR bot check page (HTTP 403, title \"Just a moment...\") at https://www.atomtickets.com/theaters/amc-tysons-corner-16/9803?d=1795367799858",
-        "failed georgetown: ERR bot check page (HTTP 403, title \"Just a moment...\") at https://www.atomtickets.com/theaters/amc-tysons-corner-16/9803?d=1795367799858",
-        "failed alamo-dc: ERR bot check page (HTTP 403, title \"Just a moment...\") at https://www.atomtickets.com/theaters/amc-tysons-corner-16/9803?d=1795367799858",
-        "failed alamo-cc: ERR bot check page (HTTP 403, title \"Just a moment...\") at https://www.atomtickets.com/theaters/amc-tysons-corner-16/9803?d=1795367799858",
-        "failed afi: ERR bot check page (HTTP 403, title \"Just a moment...\") at https://www.atomtickets.com/theaters/amc-tysons-corner-16/9803?d=1795367799858"
-      ],
-      "ms": 10145,
-      "skippedThisRun": true
+        "alamo-dc": "10 films today, 40 days",
+        "alamo-cc": "9 films today, 40 days"
+      }
     },
-    "atom-presale-formats": {
-      "ok": false,
-      "file": "atom-presale-formats.json",
-      "dataDate": "2026-11-22",
-      "dataAt": "2026-11-22T17:08:13.977Z",
-      "error": "bot check page (HTTP 403, title \"Just a moment...\") at https://www.atomtickets.com/theaters/amc-tysons-corner-16/9803?d=1795367799858",
-      "blocked": true,
-      "ms": 1,
-      "skippedThisRun": true
-    },
-    "atom-day-by-day": {
-      "ok": false,
-      "file": "atom-day-by-day.json",
-      "dataDate": "2026-11-22",
-      "dataAt": "2026-11-22T17:08:13.977Z",
-      "error": "bot check page (HTTP 403, title \"Just a moment...\") at https://www.atomtickets.com/theaters/amc-tysons-corner-16/9803?d=1795367799858",
-      "blocked": true,
-      "ms": 0,
-      "skippedThisRun": true
-    },
-    "4eye": {
+    "miracle": {
       "ok": true,
-      "file": "4eye.json",
-      "dataDate": "2026-11-22",
-      "dataAt": "2026-11-22T17:18:17.253Z",
-      "error": null,
+      "ms": 2742,
       "summary": {
-        "rows": 15,
-        "dates": 9
-      },
-      "notes": [],
-      "ms": 6584
+        "events": 12,
+        "days": 9,
+        "today": 0
+      }
+    },
+    "fever": {
+      "ok": true,
+      "ms": 101881,
+      "summary": {
+        "hoffman": "24 films today, 11 dates read",
+        "tysons": "15 films today, 9 dates read",
+        "georgetown": "12 films today, 10 dates read"
+      }
+    },
+    "angelika": {
+      "ok": true,
+      "ms": 3132,
+      "summary": {
+        "today": 3,
+        "days": 1,
+        "soon": 12
+      }
     },
     "afi": {
       "ok": true,
-      "file": "afi.json",
-      "dataDate": "2026-11-22",
-      "dataAt": "2026-11-22T17:18:17.253Z",
-      "error": null,
+      "ms": 27106,
       "summary": {
-        "ids": 100,
-        "films": 100,
-        "errs": 0
-      },
-      "notes": [],
-      "ms": 41939
+        "films": 98,
+        "errs": 2,
+        "today": 11,
+        "days": 33
+      }
+    },
+    "4eye": {
+      "ok": true,
+      "ms": 5222,
+      "summary": {
+        "rows": 15,
+        "today": 2
+      }
+    }
+  },
+  "theaters": {
+    "hoffman": {
+      "ok": true,
+      "dataDate": "2026-11-22",
+      "source": "fever",
+      "filmsToday": 24,
+      "days": 11,
+      "error": null
+    },
+    "tysons": {
+      "ok": true,
+      "dataDate": "2026-11-22",
+      "source": "fever",
+      "filmsToday": 15,
+      "days": 9,
+      "error": null
+    },
+    "georgetown": {
+      "ok": true,
+      "dataDate": "2026-11-22",
+      "source": "fever",
+      "filmsToday": 12,
+      "days": 10,
+      "error": null
+    },
+    "alamo-dc": {
+      "ok": true,
+      "dataDate": "2026-11-22",
+      "source": "alamo",
+      "filmsToday": 10,
+      "days": 40,
+      "error": null
+    },
+    "alamo-cc": {
+      "ok": true,
+      "dataDate": "2026-11-22",
+      "source": "alamo",
+      "filmsToday": 9,
+      "days": 40,
+      "error": null
+    },
+    "afi": {
+      "ok": true,
+      "dataDate": "2026-11-22",
+      "source": "afi",
+      "filmsToday": 11,
+      "days": 33,
+      "error": null
+    },
+    "miracle": {
+      "ok": true,
+      "dataDate": "2026-11-22",
+      "source": "miracle",
+      "filmsToday": 0,
+      "days": 9,
+      "error": null
+    },
+    "angelika": {
+      "ok": true,
+      "dataDate": "2026-11-22",
+      "source": "angelika",
+      "filmsToday": 3,
+      "days": 1,
+      "error": null
+    },
+    "4eye": {
+      "ok": true,
+      "dataDate": "2026-11-22",
+      "source": "4eye",
+      "filmsToday": 2,
+      "days": 9,
+      "error": null
     }
   }
 }
