@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       only:
-        description: 'Only these sources, comma-separated (blank = all): alamo, fever, angelika, miracle, afi, 4eye'
+        description: 'Only these sources, comma-separated (blank = all): alamo, fever, angelika, miracle, afi, 4eye, smithsonian'
         required: false
         default: ''
 

@@ -7,13 +7,18 @@
 //   miracle                   The Miracle Theatre's own site (event list)
 //   afi                       AFI Silver's own site (also saved raw as data/afi.json for the specials)
 //   4eye                      4EYE Film Center's own site
+//   si-lockheed, si-airbus    Smithsonian Theaters' own pages (Lockheed Martin IMAX on the Mall, Airbus IMAX at
+//                             Udvar-Hazy); only feature films (75+ minutes) are kept, not the museum documentaries.
+//                             si.edu sends GitHub's servers a Cloudflare check, so this source is opt-in (ONLY=smithsonian)
+//                             and runs on a self-hosted runner at home (.github/workflows/smithsonian.yml). It writes
+//                             data/smithsonian.json and leaves showtimes.json and meta.json alone.
 //
 // Output: data/showtimes.json (normalized per theater, per day), data/afi.json, data/meta.json.
 // A theater whose source fails keeps its previous entry with ok:false; a theater is current only
 // if ok is true and dataDate equals today (ET). It never tries to get past a CAPTCHA or bot check:
 // a challenge is recorded as "blocked" and that source is skipped for the run.
 //
-// Env: ONLY=comma list of sources (alamo,fever,angelika,miracle,afi,4eye), DATA_DIR (default ./data),
+// Env: ONLY=comma list of sources (alamo,fever,angelika,miracle,afi,4eye,smithsonian), DATA_DIR (default ./data),
 //      *_URL overrides and CHROME_PATH for testing, PAUSE_MS (default 1500).
 
 import { chromium } from 'playwright';
@@ -34,17 +39,22 @@ const URLS = {
   miracle: process.env.MIRACLE_URL || 'https://themiracletheatre.com/event-category/in-theatre-movies/',
   afi: process.env.AFI_URL || 'https://silver.afi.com/now-playing/',
   foureye: process.env.FOUREYE_URL || 'https://4eyefilmcenter.org/now-playing/',
+  smithsonian: process.env.SI_URL || 'https://www.si.edu/theaters/lockheedmartin',
 };
 const ALAMO_CINEMAS = { '1101': 'alamo-dc', '1102': 'alamo-cc' };
 const FEVER_THEATERS = { hoffman: 'amc-hoffman-center-22', tysons: 'amc-tysons-corner-16', georgetown: 'amc-georgetown-14' };
+const SI_TERMS = { 'si-lockheed': 52, 'si-airbus': 53 };   // si.edu taxonomy terms of the two IMAX theaters
+const SI_DAYS = 15;                                          // the Smithsonian posts showtimes about two weeks ahead
+const SI_MIN_RUNTIME = 75;                                   // museum documentaries run 25-50 minutes; features 90+
 const THEATERS = ['hoffman', 'tysons', 'georgetown', 'alamo-dc', 'alamo-cc', 'afi', 'miracle', 'angelika', '4eye'];
-const SOURCE_OF = { hoffman: 'fever', tysons: 'fever', georgetown: 'fever', 'alamo-dc': 'alamo', 'alamo-cc': 'alamo', afi: 'afi', miracle: 'miracle', angelika: 'angelika', '4eye': '4eye' };
+const OPT_IN = ['smithsonian'];   // sources that only run when named in ONLY
+const SOURCE_OF = { hoffman: 'fever', tysons: 'fever', georgetown: 'fever', 'alamo-dc': 'alamo', 'alamo-cc': 'alamo', afi: 'afi', miracle: 'miracle', angelika: 'angelika', '4eye': '4eye', 'si-lockheed': 'smithsonian', 'si-airbus': 'smithsonian' };
 
 const today = new Date().toLocaleDateString('en-CA', { timeZone: ET });
 const addDays = (d, n) => new Date(Date.parse(d + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const want = src => !ONLY.length || ONLY.includes(src);
+const want = src => ONLY.length ? ONLY.includes(src) : !OPT_IN.includes(src);
 class BlockedError extends Error {}
 
 // ---------------------------------------------------------------------------
@@ -367,6 +377,75 @@ function foureyeTheater(rows) {
   return { days: buildDays(items), soon: [] };
 }
 
+// Smithsonian Theaters: one page per theater per day (/taxonomy/term/<id>?field_day_value=YYYY-MM-DD) with a card per
+// film; each film's own page has its runtime. Runs inside a si.edu page so the site's own cookies apply.
+async function SMITHSONIAN({ terms, start, days, timeoutMs }) {
+  const ctl = new AbortController(); setTimeout(() => ctl.abort(), timeoutMs);
+  const P = s => new DOMParser().parseFromString(s, 'text/html');
+  const add = (d, n) => new Date(Date.parse(d + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
+  const longDate = d => new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const get = async u => { const r = await fetch(u, { signal: ctl.signal, credentials: 'same-origin' }); if (!r.ok) throw new Error(u + ' HTTP ' + r.status); return r.text(); };
+  const pool = async (jobs, n) => { const out = []; let i = 0; await Promise.all(Array.from({ length: n }, async () => { while (i < jobs.length) { const k = i++; out[k] = await jobs[k]().catch(e => ({ err: String(e) })); } })); return out; };
+  const result = { days: {}, films: {}, errs: [], pages: 0 };
+  const jobs = [];
+  for (const [tid, term] of Object.entries(terms)) {
+    result.days[tid] = {};
+    for (let n = 0; n < days; n++) {
+      const dt = add(start, n);
+      jobs.push(async () => {
+        const h = await get(`/taxonomy/term/${term}?field_day_value=${dt}`);
+        if (!/c-film-teaser/.test(h)) throw new Error(`${tid} ${dt}: no film list on the page`);
+        const d = P(h);
+        const main = d.querySelector('main') || d.body;
+        if (!main.textContent.replace(/\s+/g, ' ').includes(longDate(dt))) throw new Error(`${tid} ${dt}: page is not for that date`);
+        result.pages++;
+        const films = [];
+        main.querySelectorAll('.c-film-teaser__title').forEach(h2 => {
+          const card = h2.closest('.c-film-teaser') || h2.parentElement;
+          const a = h2.querySelector('a[href]') || card.querySelector('a[href*="/movie/"]');
+          const times = [...card.querySelectorAll('.c-film-teaser__time')].map(li => ({ t: (li.textContent.match(/\d{1,2}:\d\d\s*[ap]\.?m/i) || [])[0], onsite: /--onsite/.test(li.className) })).filter(x => x.t);
+          films.push({ title: h2.textContent.replace(/\s+/g, ' ').trim(), path: a ? new URL(a.href, location.href).pathname : null, times, text: card.textContent.replace(/\s+/g, ' ').trim().slice(0, 400) });
+        });
+        result.days[tid][dt] = films;
+      });
+    }
+  }
+  (await pool(jobs, 3)).forEach(r => { if (r && r.err) result.errs.push(r.err); });
+  const paths = [...new Set(Object.values(result.days).flatMap(byDay => Object.values(byDay).flat()).filter(f => f.path && f.times.length).map(f => f.path))];
+  (await pool(paths.map(p => async () => {
+    const d = P(await get(p));
+    const rt = d.querySelector('.field--name-field-runtime');
+    const ra = d.querySelector('.field--name-field-rating');
+    const mins = rt && +(rt.textContent.match(/(\d{2,3})\s*min/i) || [])[1];
+    result.films[p] = { runtime: mins || null, rating: ra ? ra.textContent.replace(/^\s*Rating\s*/i, '').replace(/\s+/g, ' ').trim() : null };
+  }), 3)).forEach(r => { if (r && r.err) result.errs.push(r.err); });
+  return result;
+}
+function normRating(s) {
+  if (!s) return null;
+  const m = String(s).match(/\b(PG-13|NC-17|PG|G|R|NR)\b/);
+  return m ? m[1] : /not rated|unrated/i.test(s) ? 'NR' : null;
+}
+// Keep feature films only. Everything at these two theaters is projected in IMAX except the NASM 50th Anniversary
+// Film Series, which the museum says are not IMAX presentations, so those get no label.
+function smithsonianTheaters(raw) {
+  const out = {};
+  for (const tid of Object.keys(SI_TERMS)) {
+    const byDay = raw.days[tid] || {};
+    if (!byDay[today]) { out[tid] = { error: `today's page couldn't be read${raw.errs.length ? ' (' + raw.errs.slice(0, 2).join('; ') + ')' : ''}` }; continue; }
+    const items = [];
+    for (const [dt, films] of Object.entries(byDay)) for (const f of films) {
+      const info = raw.films[f.path] || {};
+      if (!f.times.length || !(info.runtime >= SI_MIN_RUNTIME)) continue;
+      const series = /50th (anniversary )?film series/i.test(f.title);
+      const title = smartTitle(f.title.replace(/\s*[-–—]\s*NASM 50th (Anniversary )?Film Series\s*$/i, '').trim());
+      for (const x of f.times) items.push({ date: dt, title, rating: normRating(info.rating), runtime: runtimeFrom(info.runtime), label: series ? '' : 'IMAX', time: x.t });
+    }
+    out[tid] = { days: buildDays(items), soon: [], datesRead: Object.keys(byDay).length };
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -399,7 +478,7 @@ async function main() {
 
   // Browser sources.
   let browser = null, ctx = null;
-  if (['fever', 'angelika', 'afi', '4eye'].some(want)) {
+  if (['fever', 'angelika', 'afi', '4eye', 'smithsonian'].some(want)) {
     browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH || undefined });
     ctx = await browser.newContext({ timezoneId: ET, locale: 'en-US', viewport: { width: 1366, height: 900 } });
   }
@@ -433,7 +512,32 @@ async function main() {
       return { rows: rows.length, today: countFilms(results['4eye'].days) };
     } finally { await page.close().catch(() => {}); }
   });
+  await run('smithsonian', async () => {
+    const page = await openPage(ctx, URLS.smithsonian);
+    try {
+      const raw = await evalWithTimeout(page, SMITHSONIAN, { terms: SI_TERMS, start: today, days: SI_DAYS, timeoutMs: 150000 }, 180000);
+      if (!raw.pages) throw new Error('no showtime pages could be read' + (raw.errs.length ? ': ' + raw.errs.slice(0, 3).join('; ') : ''));
+      const r = smithsonianTheaters(raw);
+      Object.assign(results, r);
+      return { pages: raw.pages, errs: raw.errs.length, ...Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v.error || `${countFilms(v.days)} features today, ${Object.keys(v.days).length} days with features, ${v.datesRead} dates read`])) };
+    } finally { await page.close().catch(() => {}); }
+  });
   if (browser) await browser.close().catch(() => {});
+
+  // Smithsonian theaters go to their own file (written by the home runner), merged like the others.
+  if (want('smithsonian')) {
+    const prevSi = (await readJSON(path.join(DATA_DIR, 'smithsonian.json'))) || { theaters: {} };
+    const siTheaters = {};
+    for (const tid of Object.keys(SI_TERMS)) {
+      const r = results[tid], p = prevSi.theaters?.[tid] || {};
+      const base = { source: 'smithsonian' };
+      if (!r || r.error) siTheaters[tid] = { ...base, ok: false, dataDate: p.dataDate || null, fetchedAt: p.fetchedAt || null, error: (r && r.error) || 'not run', blocked: !!(r && r.blocked), days: p.days || {}, soon: p.soon || [] };
+      else siTheaters[tid] = { ...base, ok: true, dataDate: today, fetchedAt: runAt, error: null, days: r.days, soon: r.soon || [] };
+    }
+    await writeFile(path.join(DATA_DIR, 'smithsonian.json'), JSON.stringify({ today, updatedAt: runAt, status: status.smithsonian || null, note: 'Same shape as showtimes.json theaters. Feature films only (75+ minutes).', theaters: siTheaters }) + '\n');
+    log(`smithsonian: ${Object.entries(siTheaters).map(([k, v]) => `${k}:${v.ok ? v.days?.[today]?.length || 0 : 'X ' + v.error}`).join(' ')}`);
+    if (ONLY.length && ONLY.every(s => OPT_IN.includes(s))) return;   // home-runner run: leave the other files alone
+  }
 
   // Merge with the previous file: failed or skipped theaters keep their last good data.
   const prev = (await readJSON(path.join(DATA_DIR, 'showtimes.json'))) || { theaters: {} };
