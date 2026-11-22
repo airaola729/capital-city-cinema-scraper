@@ -14,3 +14,5 @@ Daily showtimes data for Capital City Cinema. A GitHub Actions workflow (`.githu
 A source counts as current only when `meta.json` says `ok: true` and its `dataDate` is today's date in Eastern time. A source that fails keeps its last good file, and its error is recorded in `meta.json`. The scraper never tries to get past a CAPTCHA or bot check. A challenge page is recorded as `blocked`.
 
 To run it by hand, use **Actions → Scrape showtimes → Run workflow**. You can choose `headed` mode (Chromium under xvfb) or run only some sources.
+
+**Status (2026-11-22):** 4EYE and AFI Silver scrape fine from GitHub. Atom Tickets is behind Cloudflare, which challenges requests from GitHub's servers. Headless Chromium is challenged on the first page. Headed Chromium gets one theater page and is challenged on the next. So scheduled runs only scrape `4eye,afi`. The Atom code is still here, and you can run it by hand by listing the atom sources.
