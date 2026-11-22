@@ -1,16 +1,22 @@
 // Capital City Cinema showtimes scraper.
 // Runs in GitHub Actions every morning. Opens Atom Tickets, 4EYE Film Center and
-// AFI Silver in Playwright Chromium and runs the same in-page scripts the old
-// Claude scheduled task ran in the PC's built-in browser, so every file keeps the
-// raw shape those scripts returned. Writes data/*.json plus data/meta.json.
+// AFI Silver in Playwright Chromium and uses the same parsing code the old Claude
+// scheduled task ran in the PC's built-in browser, so every file keeps the raw shape
+// those scripts returned. Writes data/*.json plus data/meta.json.
+//
+// Atom: Cloudflare challenges background fetch() requests coming from GitHub's servers,
+// while ordinary page loads in headed Chromium are served normally. So each Atom page
+// is opened as a normal page load (one at a time, with a pause), and its HTML is parsed
+// in the page with the original parse functions. 4EYE and AFI run the original
+// in-page fetch scripts.
 //
 // A source that fails records its error in meta.json and keeps its last good file.
-// It never tries to get past a CAPTCHA or bot check: a challenge page is recorded
-// as "blocked" and that source is skipped.
+// It never tries to get past a CAPTCHA or bot check: a challenge page is recorded as
+// "blocked", and no further requests are made to that site in the run.
 //
 // Env: MODE=headless|headed (headed needs xvfb-run), SOURCES=comma list to run a subset,
 //      DATA_DIR (default ./data), ATOM_URL / FOUREYE_URL / AFI_URL (start pages, for testing),
-//      CHROME_PATH (use a different Chromium binary, for testing).
+//      CHROME_PATH (use a different Chromium binary, for testing), ATOM_PAUSE_MS (default 1500).
 
 import { chromium } from 'playwright';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -23,10 +29,13 @@ const ONLY = (process.env.SOURCES || '').split(',').map(s => s.trim()).filter(Bo
 const ATOM_URL = process.env.ATOM_URL || 'https://www.atomtickets.com/theaters/amc-georgetown-14/8353';
 const FOUREYE_URL = process.env.FOUREYE_URL || 'https://4eyefilmcenter.org/now-playing/';
 const AFI_URL = process.env.AFI_URL || 'https://silver.afi.com/now-playing/';
+const ATOM_PAUSE_MS = +(process.env.ATOM_PAUSE_MS || 1500);
 
 const SOURCES = ['atom', 'atom-presale-formats', 'atom-day-by-day', '4eye', 'afi'];
-const ATOM_IDS = ['hoffman', 'tysons', 'georgetown', 'alamo-dc', 'alamo-cc', 'afi'];
-const DBD_IDS = ['miracle', 'angelika'];
+const ATOM_TH = { hoffman: "/theaters/amc-hoffman-center-22/7845", tysons: "/theaters/amc-tysons-corner-16/9803", georgetown: "/theaters/amc-georgetown-14/8353", "alamo-dc": "/theaters/alamo-drafthouse-cinema-dc-bryant-street/51802", "alamo-cc": "/theaters/alamo-drafthouse-cinema-crystal-city/52577", afi: "/theaters/afi-silver-theatre-cultural-center/8500" };
+const ATOM_DBD_TH = { miracle: "/theaters/the-miracle-theatre/42899", angelika: "/theaters/angelika-pop-up-at-union-market/38754" };
+const ATOM_IDS = Object.keys(ATOM_TH);
+const DBD_IDS = Object.keys(ATOM_DBD_TH);
 
 const todayET = () => new Date().toLocaleDateString('en-CA', { timeZone: ET });
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
@@ -34,14 +43,12 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 class BlockedError extends Error {}
 
 // ---------------------------------------------------------------------------
-// In-page scripts (ported unchanged from the old task prompt, except: they return
-// objects instead of BEGINJSON strings, and the timeout is a parameter).
+// Atom parse functions. They run in the page (DOMParser) on one page's HTML.
+// The parse/map code is unchanged from the old task prompt's STEP 2, 2e and 2a.
 // ---------------------------------------------------------------------------
 
-// STEP 2: today's showtimes for the six big theaters -> {sel, out}
-async function ATOM_TODAY({ timeoutMs }) {
-  document.cookie = "date=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-  const TH = { hoffman: "/theaters/amc-hoffman-center-22/7845", tysons: "/theaters/amc-tysons-corner-16/9803", georgetown: "/theaters/amc-georgetown-14/8353", "alamo-dc": "/theaters/alamo-drafthouse-cinema-dc-bryant-street/51802", "alamo-cc": "/theaters/alamo-drafthouse-cinema-crystal-city/52577", afi: "/theaters/afi-silver-theatre-cultural-center/8500" };
+// STEP 2 parse: one theater page -> {sel, films}; film = [title, runtime, rating, atomReleaseDate, [[format, time...]...], [month, day] | null]
+function ATOM_PARSE_TODAY(h) {
   const MON = { Jan: 1, Feb: 2, Mar: 3, Apr: 4, May: 5, Jun: 6, Jul: 7, Aug: 8, Sep: 9, Oct: 10, Nov: 11, Dec: 12 };
   const map = (f, a) => { if (/imax/i.test(f)) return "IMAX"; if (/dolby/i.test(f)) return "Dolby"; if (/laser/i.test(f)) return "Laser"; if (/prime/i.test(f)) return "Prime"; if (/^xl/i.test(f)) return "XL"; if (/4dx/i.test(f)) return "4DX"; if (/3d/i.test(f)) return "3D"; if (/big show/i.test(f)) return "Big Show"; if (/screenx/i.test(f)) return "ScreenX"; if (/standard/i.test(f) || !f) { if (/open caption/i.test(a)) return "Open Caption"; if (/sensory/i.test(a)) return "Sensory"; return ""; } return f; };
   function parse(doc) {
@@ -65,41 +72,31 @@ async function ATOM_TODAY({ timeoutMs }) {
     });
     return films;
   }
-  const ctl = new AbortController(); setTimeout(() => ctl.abort(), timeoutMs);
-  const out = {}, sel = {};
-  await Promise.all(Object.entries(TH).map(async ([id, path]) => { try { const h = await (await fetch(path + '?d=' + Date.now(), { signal: ctl.signal, credentials: 'include' })).text(); sel[id] = (h.match(/serverFormat&quot;:&quot;(\d{4}-\d\d-\d\d)&quot;,&quot;dayOfWeek&quot;:&quot;\w+&quot;,&quot;isSelected&quot;:true/) || [])[1]; out[id] = parse(new DOMParser().parseFromString(h, 'text/html')); } catch (e) { out[id] = 'ERR ' + e; } }));
-  return { sel, out };
+  const sel = (h.match(/serverFormat&quot;:&quot;(\d{4}-\d\d-\d\d)&quot;,&quot;dayOfWeek&quot;:&quot;\w+&quot;,&quot;isSelected&quot;:true/) || [])[1];
+  return { sel, films: parse(new DOMParser().parseFromString(h, 'text/html')) };
 }
 
-// STEP 2e: premium formats / film prints for presale films in the next two weeks -> {n, fail, hits}
-async function ATOM_PRESALE({ timeoutMs }) {
-  document.cookie = "date=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-  const END = new Date(Date.now() + 14 * 864e5).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-  const TH = { hoffman: "/theaters/amc-hoffman-center-22/7845", tysons: "/theaters/amc-tysons-corner-16/9803", georgetown: "/theaters/amc-georgetown-14/8353", "alamo-dc": "/theaters/alamo-drafthouse-cinema-dc-bryant-street/51802", "alamo-cc": "/theaters/alamo-drafthouse-cinema-crystal-city/52577", afi: "/theaters/afi-silver-theatre-cultural-center/8500" };
-  const map = (f) => { if (/imax/i.test(f)) return "IMAX"; if (/dolby/i.test(f)) return "Dolby"; if (/prime/i.test(f)) return "Prime"; if (/^xl/i.test(f)) return "XL"; if (/big show/i.test(f)) return "Big Show"; if (/70\s?mm/i.test(f)) return "70mm"; if (/35\s?mm/i.test(f)) return "35mm"; return null; };
-  const ctl = new AbortController(); setTimeout(() => ctl.abort(), timeoutMs);
+// STEP 2e, part 1: presale links on one theater page dated on or before END -> [[title, date, href]...]
+function ATOM_PRESALE_LINKS({ h, END }) {
   const jobs = [];
-  await Promise.all(Object.entries(TH).map(async ([id, path]) => {
-    const h = await (await fetch(path + '?d=' + Date.now(), { signal: ctl.signal })).text();
-    const doc = new DOMParser().parseFromString(h, 'text/html');
-    doc.querySelectorAll('.showtime-panel').forEach(panel => {
-      let title = null; try { title = JSON.parse(panel.querySelector('[data-qa="ProductionHeader_Container"] a[data-csm]').getAttribute('data-csm')).productionName; } catch (e) {}
-      const a = panel.querySelector('[data-qa="PreorderShowtimes_Button"]');
-      if (title && a) { const m = a.getAttribute('href').match(/localDate=(\d{4}-\d\d-\d\d)/); if (m && m[1] <= END) jobs.push([id, title, m[1], a.getAttribute('href')]); }
-    });
-  }));
-  const res = await Promise.allSettled(jobs.map(async j => {
-    const h = await (await fetch(j[3], { signal: ctl.signal })).text();
-    const doc = new DOMParser().parseFromString(h, 'text/html');
-    const f = [...new Set([...doc.querySelectorAll('[data-qa="Showtimes_Wrapper"]')].map(w => map((w.querySelector('img.format-icon') || {}).alt || '')).filter(Boolean))];
-    return [j[0], j[1], j[2], f];
-  }));
-  return { n: jobs.length, fail: res.filter(r => r.status !== 'fulfilled').length, hits: res.filter(r => r.value && r.value[3].length).map(r => r.value) };
+  const doc = new DOMParser().parseFromString(h, 'text/html');
+  doc.querySelectorAll('.showtime-panel').forEach(panel => {
+    let title = null; try { title = JSON.parse(panel.querySelector('[data-qa="ProductionHeader_Container"] a[data-csm]').getAttribute('data-csm')).productionName; } catch (e) {}
+    const a = panel.querySelector('[data-qa="PreorderShowtimes_Button"]');
+    if (title && a) { const m = a.getAttribute('href').match(/localDate=(\d{4}-\d\d-\d\d)/); if (m && m[1] <= END) jobs.push([title, m[1], a.getAttribute('href')]); }
+  });
+  return jobs;
 }
 
-// STEP 2a: The Miracle Theatre and Angelika Pop-Up, day by day -> {miracle:{today,dates,days}, angelika:{...}}
-async function ATOM_DAY_BY_DAY({ timeoutMs }) {
-  const TH = { miracle: "/theaters/the-miracle-theatre/42899", angelika: "/theaters/angelika-pop-up-at-union-market/38754" };
+// STEP 2e, part 2: formats on one presale page -> ["IMAX", ...]
+function ATOM_PRESALE_FORMATS(h) {
+  const map = (f) => { if (/imax/i.test(f)) return "IMAX"; if (/dolby/i.test(f)) return "Dolby"; if (/prime/i.test(f)) return "Prime"; if (/^xl/i.test(f)) return "XL"; if (/big show/i.test(f)) return "Big Show"; if (/70\s?mm/i.test(f)) return "70mm"; if (/35\s?mm/i.test(f)) return "35mm"; return null; };
+  const doc = new DOMParser().parseFromString(h, 'text/html');
+  return [...new Set([...doc.querySelectorAll('[data-qa="Showtimes_Wrapper"]')].map(w => map((w.querySelector('img.format-icon') || {}).alt || '')).filter(Boolean))];
+}
+
+// STEP 2a parse: one Miracle/Angelika page -> {sel, dates, films}; film = [title, runtime, rating, atomReleaseDate, [[format, time...]...]]
+function ATOM_PARSE_DAY(h) {
   const map = (f, a) => { if (/imax/i.test(f)) return "IMAX"; if (/dolby/i.test(f)) return "Dolby"; if (/laser/i.test(f)) return "Laser"; if (/3d/i.test(f)) return "3D"; if (/standard/i.test(f) || !f) { if (/open caption/i.test(a)) return "Open Caption"; if (/sensory/i.test(a)) return "Sensory"; return ""; } return f; };
   function parse(doc) {
     const films = [];
@@ -120,41 +117,15 @@ async function ATOM_DAY_BY_DAY({ timeoutMs }) {
     });
     return films;
   }
-  const ctl = new AbortController(); setTimeout(() => ctl.abort(), timeoutMs);
-  const sel = h => (h.match(/serverFormat&quot;:&quot;(\d{4}-\d\d-\d\d)&quot;,&quot;dayOfWeek&quot;:&quot;\w+&quot;,&quot;isSelected&quot;:true/) || [])[1];
-  const out = {};
-  for (const [id, path] of Object.entries(TH)) {
-    try {
-      document.cookie = "date=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-      const h = await (await fetch(path + '?d=' + Date.now(), { signal: ctl.signal, credentials: 'include' })).text();
-      const dates = [...new Set([...h.matchAll(/serverFormat&quot;:&quot;(\d{4}-\d\d-\d\d)/g)].map(m => m[1]))];
-      const today = sel(h) || null; const days = {};
-      if (today) days[today] = parse(new DOMParser().parseFromString(h, 'text/html'));
-      for (const dt of dates.filter(x => x !== today).slice(0, 12)) {
-        document.cookie = "date=" + dt + "; path=/";
-        const h2 = await (await fetch(path + '?d=' + Date.now(), { signal: ctl.signal, credentials: 'include' })).text();
-        if (sel(h2) === dt) days[dt] = parse(new DOMParser().parseFromString(h2, 'text/html'));
-      }
-      out[id] = { today, dates, days };
-    } catch (e) { out[id] = 'ERR ' + e; }
-  }
-  document.cookie = "date=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-  return out;
+  const sel = (h.match(/serverFormat&quot;:&quot;(\d{4}-\d\d-\d\d)&quot;,&quot;dayOfWeek&quot;:&quot;\w+&quot;,&quot;isSelected&quot;:true/) || [])[1];
+  const dates = [...new Set([...h.matchAll(/serverFormat&quot;:&quot;(\d{4}-\d\d-\d\d)/g)].map(m => m[1]))];
+  return { sel, dates, films: parse(new DOMParser().parseFromString(h, 'text/html')) };
 }
 
-// Diagnostic only (not part of the data): what an in-page request for a theater page returns.
-async function ATOM_PROBE() {
-  const r = await fetch('/theaters/amc-georgetown-14/8353?d=' + Date.now(), { credentials: 'include' });
-  const t = await r.text();
-  return {
-    status: r.status, len: t.length,
-    title: ((t.match(/<title[^>]*>([^<]*)/i) || [])[1] || '').trim().slice(0, 80),
-    panels: (t.match(/showtime-panel/g) || []).length, serverFormat: t.includes('serverFormat'),
-    challenge: /challenge-platform|cf-chl|cf_chl_opt|just a moment/i.test(t),
-    pageUrl: location.href, pagePanels: document.querySelectorAll('.showtime-panel').length,
-    pageServerFormat: document.documentElement.innerHTML.includes('serverFormat'),
-  };
-}
+// ---------------------------------------------------------------------------
+// 4EYE and AFI in-page scripts (unchanged from the old task prompt, except: they
+// return objects instead of BEGINJSON strings, and the timeout is a parameter).
+// ---------------------------------------------------------------------------
 
 // STEP 2b: 4EYE Film Center -> rows [date, title, time, chips]
 async function FOUREYE({ timeoutMs }) {
@@ -215,15 +186,15 @@ async function AFI({ timeoutMs }) {
 // Runner
 // ---------------------------------------------------------------------------
 
-async function detectBlock(page, resp) {
+// Returns null if the page looks normal, else {challenge: bool, msg}.
+async function checkPage(page, resp) {
   const status = resp ? resp.status() : null;
   const title = (await page.title().catch(() => '')) || '';
   const html = (await page.content().catch(() => '')) || '';
   const TITLE_RX = /just a moment|attention required|access denied|pardon our interruption|are you a (human|robot)|security check|verify you are human|request blocked|captcha/i;
   const HTML_RX = /challenges\.cloudflare\.com|cf-chl-|cf_chl_opt|captcha-delivery\.com|px-captcha|_Incapsula_Resource|g-recaptcha|h-captcha/i;
-  if (TITLE_RX.test(title)) return `bot check page (HTTP ${status}, title "${title}")`;
-  if (html.length < 60000 && HTML_RX.test(html)) return `bot check page (HTTP ${status}, title "${title}")`;
-  if (status && status >= 400) return `HTTP ${status} (title "${title}")`;
+  if (TITLE_RX.test(title) || (html.length < 60000 && HTML_RX.test(html))) return { challenge: true, msg: `bot check page (HTTP ${status}, title "${title}")` };
+  if (status && status >= 400) return { challenge: false, msg: `HTTP ${status} (title "${title}")` };
   return null;
 }
 
@@ -232,8 +203,8 @@ async function openPage(ctx, url) {
   try {
     const resp = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForTimeout(2500);
-    const blocked = await detectBlock(page, resp);
-    if (blocked) throw new BlockedError(blocked);
+    const bad = await checkPage(page, resp);
+    if (bad) throw bad.challenge ? new BlockedError(bad.msg) : new Error(bad.msg);
     log('opened', url, '->', resp && resp.status(), JSON.stringify(await page.title()));
     return page;
   } catch (e) {
@@ -248,6 +219,27 @@ async function evalWithTimeout(page, fn, timeoutMs) {
   const guard = new Promise((_, rej) => { timer = setTimeout(() => rej(new Error(`script timed out after ${timeoutMs + 30000} ms`)), timeoutMs + 30000); });
   try { return await Promise.race([page.evaluate(fn, { timeoutMs }), guard]); }
   finally { clearTimeout(timer); }
+}
+
+// Loads Atom pages one at a time as normal page loads. Stops for the rest of the run
+// as soon as any page comes back as a bot check.
+class AtomSession {
+  constructor(ctx, page) { this.ctx = ctx; this.page = page; this.origin = new URL(ATOM_URL).origin; this.blocked = null; this.loads = 0; this.cache = {}; }
+  async html(pathOrUrl) {
+    if (this.blocked) throw new BlockedError(this.blocked);
+    if (this.loads++) await this.page.waitForTimeout(ATOM_PAUSE_MS + Math.floor(Math.random() * 1000));
+    const url = new URL(pathOrUrl, this.origin).href;
+    const resp = await this.page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    const bad = await checkPage(this.page, resp);
+    if (bad && bad.challenge) { this.blocked = bad.msg + ' at ' + url; log('[atom] BLOCKED:', this.blocked); throw new BlockedError(this.blocked); }
+    if (bad) throw new Error(bad.msg + ' at ' + url);
+    return await resp.text();
+  }
+  async setDate(dt) {
+    await this.ctx.clearCookies({ name: 'date' });
+    if (dt) await this.ctx.addCookies([{ name: 'date', value: dt, url: this.origin + '/' }]);
+  }
+  parse(fn, arg) { return this.page.evaluate(fn, arg); }
 }
 
 const results = {};
@@ -284,66 +276,102 @@ async function main() {
   } catch (e) { launchErr = e; log('browser launch failed:', e.message); }
 
   const need = names => !ONLY.length || names.some(n => ONLY.includes(n));
+  const errText = e => String((e && e.message) || e).slice(0, 200);
 
-  // --- Atom Tickets (one tab for STEP 2, 2e, 2a, in the old order) ---
-  let atomPage = null, atomErr = launchErr;
-  if (!launchErr && need(['atom', 'atom-presale-formats', 'atom-day-by-day'])) {
-    try { atomPage = await openPage(ctx, ATOM_URL); } catch (e) { atomErr = e; }
-  }
+  // --- Atom Tickets (STEP 2, 2e, 2a in the old order, one tab) ---
+  let atom = null;
+  if (!launchErr && need(['atom', 'atom-presale-formats', 'atom-day-by-day'])) atom = new AtomSession(ctx, await ctx.newPage());
+  const atomGuard = () => { if (launchErr) throw launchErr; if (atom.blocked) throw new BlockedError(atom.blocked); };
 
   await runSource('atom', async () => {
-    if (!atomPage) throw atomErr;
-    const bad = r => ATOM_IDS.filter(id => !Array.isArray(r.out[id]) || !r.out[id].length || r.sel[id] !== today);
-    const r = await evalWithTimeout(atomPage, ATOM_TODAY, 120000);
-    let failed = bad(r);
-    if (failed.length) {
+    atomGuard();
+    await atom.setDate(null);
+    const sel = {}, out = {};
+    const readOne = async id => {
+      try {
+        const h = await atom.html(ATOM_TH[id] + '?d=' + Date.now());
+        const r = await atom.parse(ATOM_PARSE_TODAY, h);
+        sel[id] = r.sel; out[id] = r.films; atom.cache[id] = h;
+      } catch (e) { delete sel[id]; out[id] = 'ERR ' + errText(e); }
+    };
+    const bad = () => ATOM_IDS.filter(id => !Array.isArray(out[id]) || !out[id].length || sel[id] !== today);
+    for (const id of ATOM_IDS) await readOne(id);
+    let failed = bad();
+    if (failed.length && !atom.blocked) {
       log(`[atom] retrying ${failed.join(', ')}`);
-      const r2 = await evalWithTimeout(atomPage, ATOM_TODAY, 120000);
-      for (const id of failed) if (!bad({ out: { [id]: r2.out[id] }, sel: { [id]: r2.sel[id] } }).includes(id)) { r.out[id] = r2.out[id]; r.sel[id] = r2.sel[id]; }
-      failed = bad(r);
+      for (const id of failed) await readOne(id);
+      failed = bad();
     }
-    const describe = id => Array.isArray(r.out[id]) ? `${id}: ${r.out[id].length} films, selected date ${r.sel[id] || 'none'}` : `${id}: ${String(r.out[id]).slice(0, 120)}`;
+    const describe = id => Array.isArray(out[id]) ? `${id}: ${out[id].length} films, selected date ${sel[id] || 'none'}` : `${id}: ${out[id]}`;
     if (failed.length === ATOM_IDS.length) {
-      const probe = await evalWithTimeout(atomPage, ATOM_PROBE, 30000).catch(e => ({ probeError: String(e).slice(0, 200) }));
-      log('[atom] probe', JSON.stringify(probe));
-      throw new Error('all six theaters failed — ' + failed.map(describe).join('; ') + ' — probe ' + JSON.stringify(probe));
+      const msg = 'all six theaters failed — ' + failed.map(describe).join('; ');
+      throw atom.blocked ? new BlockedError(msg) : new Error(msg);
     }
     return {
-      data: r,
-      summary: Object.fromEntries(ATOM_IDS.map(id => [id, Array.isArray(r.out[id]) ? r.out[id].length : 'ERR'])),
+      data: { sel, out },
+      summary: Object.fromEntries(ATOM_IDS.map(id => [id, Array.isArray(out[id]) ? out[id].length : 'ERR'])),
       notes: failed.map(id => 'failed ' + describe(id)),
     };
   });
 
   await runSource('atom-presale-formats', async () => {
-    if (!atomPage) throw atomErr;
-    const r = await evalWithTimeout(atomPage, ATOM_PRESALE, 120000);
+    atomGuard();
+    await atom.setDate(null);
+    const END = new Date(Date.now() + 14 * 864e5).toLocaleDateString('en-CA', { timeZone: ET });
+    const jobs = [];
+    for (const id of ATOM_IDS) {
+      const h = atom.cache[id] || await atom.html(ATOM_TH[id] + '?d=' + Date.now()); // a theater page that can't be read fails the step, as before
+      for (const [title, date, href] of await atom.parse(ATOM_PRESALE_LINKS, { h, END })) jobs.push([id, title, date, href]);
+    }
+    const res = [];
+    for (const j of jobs) {
+      try { res.push({ status: 'fulfilled', value: [j[0], j[1], j[2], await atom.parse(ATOM_PRESALE_FORMATS, await atom.html(j[3]))] }); }
+      catch (e) { res.push({ status: 'rejected', reason: errText(e) }); }
+    }
+    if (atom.blocked) throw new BlockedError(atom.blocked);
+    const r = { n: jobs.length, fail: res.filter(x => x.status !== 'fulfilled').length, hits: res.filter(x => x.value && x.value[3].length).map(x => x.value) };
     // An empty result can't be told apart from a failed read unless the main Atom read worked this run.
     if (r.n === 0 && !(results.atom && results.atom.ok)) throw new Error('no presale links found and the main Atom read did not succeed this run, so the result is not trustworthy');
     return { data: r, summary: { n: r.n, fail: r.fail, hits: r.hits.length } };
   });
 
   await runSource('atom-day-by-day', async () => {
-    if (!atomPage) throw atomErr;
+    atomGuard();
     const isErr = v => typeof v === 'string';
-    // A theater page always lists its dates; none found means the read failed (e.g. a block page).
-    const fix = r => { for (const id of DBD_IDS) if (r[id] && !isErr(r[id]) && !(r[id].dates || []).length) r[id] = 'ERR no dates found on the theater page'; return r; };
-    const r = fix(await evalWithTimeout(atomPage, ATOM_DAY_BY_DAY, 180000));
-    const failed = DBD_IDS.filter(id => isErr(r[id]) || !r[id]);
-    if (failed.length) {
-      log(`[atom-day-by-day] retrying ${failed.join(', ')}`);
-      const r2 = fix(await evalWithTimeout(atomPage, ATOM_DAY_BY_DAY, 180000));
-      for (const id of failed) if (r2[id] && !isErr(r2[id])) r[id] = r2[id];
+    const out = {};
+    const readTheater = async id => {
+      const p = ATOM_DBD_TH[id];
+      try {
+        await atom.setDate(null);
+        const r = await atom.parse(ATOM_PARSE_DAY, await atom.html(p + '?d=' + Date.now()));
+        // A theater page always lists its dates; none found means the read failed.
+        if (!r.dates.length) throw new Error('no dates found on the theater page');
+        const today2 = r.sel || null; const days = {};
+        if (today2) days[today2] = r.films;
+        for (const dt of r.dates.filter(x => x !== today2).slice(0, 12)) {
+          await atom.setDate(dt);
+          const r2 = await atom.parse(ATOM_PARSE_DAY, await atom.html(p + '?d=' + Date.now()));
+          if (r2.sel === dt) days[dt] = r2.films;
+        }
+        out[id] = { today: today2, dates: r.dates, days };
+      } catch (e) { out[id] = 'ERR ' + errText(e); }
+    };
+    for (const id of DBD_IDS) await readTheater(id);
+    const failed = DBD_IDS.filter(id => isErr(out[id]));
+    if (failed.length && !atom.blocked) { log(`[atom-day-by-day] retrying ${failed.join(', ')}`); for (const id of failed) await readTheater(id); }
+    await atom.setDate(null);
+    const still = DBD_IDS.filter(id => isErr(out[id]));
+    if (still.length === DBD_IDS.length) {
+      const msg = 'both theaters failed — ' + still.map(id => `${id}: ${out[id]}`).join('; ');
+      throw atom.blocked ? new BlockedError(msg) : new Error(msg);
     }
-    const still = DBD_IDS.filter(id => isErr(r[id]) || !r[id]);
-    if (still.length === DBD_IDS.length) throw new Error('both theaters failed — ' + still.map(id => `${id}: ${String(r[id]).slice(0, 120)}`).join('; '));
     return {
-      data: r,
-      summary: Object.fromEntries(DBD_IDS.map(id => [id, isErr(r[id]) ? 'ERR' : { today: r[id].today, days: Object.keys(r[id].days).length }])),
-      notes: still.map(id => `failed ${id}: ${String(r[id]).slice(0, 120)}`),
+      data: out,
+      summary: Object.fromEntries(DBD_IDS.map(id => [id, isErr(out[id]) ? 'ERR' : { today: out[id].today, days: Object.keys(out[id].days).length }])),
+      notes: still.map(id => `failed ${id}: ${out[id]}`),
     };
   });
-  if (atomPage) await atomPage.close().catch(() => {});
+  if (atom) { log(`[atom] ${atom.loads} page loads`); await atom.page.close().catch(() => {}); }
 
   // --- 4EYE Film Center ---
   await runSource('4eye', async () => {
