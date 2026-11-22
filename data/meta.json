@@ -1,7 +1,7 @@
 {
-  "runAt": "2026-11-22T17:49:34.964Z",
+  "runAt": "2026-11-22T17:55:15.059Z",
   "today": "2026-11-22",
-  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45051560508",
+  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45052082029",
   "afiSpecials": {
     "ok": true,
     "dataDate": "2026-11-22",
@@ -9,57 +9,13 @@
     "error": null
   },
   "sources": {
-    "alamo": {
-      "ok": true,
-      "ms": 421,
-      "summary": {
-        "alamo-dc": "10 films today, 40 days",
-        "alamo-cc": "9 films today, 40 days"
-      }
-    },
-    "miracle": {
-      "ok": true,
-      "ms": 2742,
-      "summary": {
-        "events": 12,
-        "days": 9,
-        "today": 0
-      }
-    },
     "fever": {
       "ok": true,
-      "ms": 101881,
+      "ms": 110052,
       "summary": {
-        "hoffman": "24 films today, 11 dates read",
-        "tysons": "15 films today, 9 dates read",
-        "georgetown": "12 films today, 10 dates read"
-      }
-    },
-    "angelika": {
-      "ok": true,
-      "ms": 3132,
-      "summary": {
-        "today": 3,
-        "days": 1,
-        "soon": 12
-      }
-    },
-    "afi": {
-      "ok": true,
-      "ms": 27106,
-      "summary": {
-        "films": 98,
-        "errs": 2,
-        "today": 11,
-        "days": 33
-      }
-    },
-    "4eye": {
-      "ok": true,
-      "ms": 5222,
-      "summary": {
-        "rows": 15,
-        "today": 2
+        "hoffman": "24 films today, 15 dates read",
+        "tysons": "15 films today, 15 dates read",
+        "georgetown": "12 films today, 15 dates read"
       }
     }
   },
@@ -69,7 +25,7 @@
       "dataDate": "2026-11-22",
       "source": "fever",
       "filmsToday": 24,
-      "days": 11,
+      "days": 15,
       "error": null
     },
     "tysons": {
@@ -77,7 +33,7 @@
       "dataDate": "2026-11-22",
       "source": "fever",
       "filmsToday": 15,
-      "days": 9,
+      "days": 15,
       "error": null
     },
     "georgetown": {
@@ -85,7 +41,7 @@
       "dataDate": "2026-11-22",
       "source": "fever",
       "filmsToday": 12,
-      "days": 10,
+      "days": 15,
       "error": null
     },
     "alamo-dc": {
