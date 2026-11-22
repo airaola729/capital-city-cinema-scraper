@@ -1,9 +1,9 @@
 {
-  "runAt": "2026-11-22T17:16:30.351Z",
+  "runAt": "2026-11-22T17:18:17.253Z",
   "today": "2026-11-22",
-  "mode": "headed",
-  "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/159.0.0.0 Safari/537.36",
-  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45048463379",
+  "mode": "headless",
+  "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/159.0.8154.6 Safari/537.36",
+  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45048641446",
   "note": "A source is current only if sources[name].ok is true and sources[name].dataDate equals today (ET). Failed sources keep their last good file; dataDate/dataAt say when that file was written.",
   "sources": {
     "atom": {
@@ -27,7 +27,8 @@
         "failed alamo-cc: ERR bot check page (HTTP 403, title \"Just a moment...\") at https://www.atomtickets.com/theaters/amc-tysons-corner-16/9803?d=1795367799858",
         "failed afi: ERR bot check page (HTTP 403, title \"Just a moment...\") at https://www.atomtickets.com/theaters/amc-tysons-corner-16/9803?d=1795367799858"
       ],
-      "ms": 10145
+      "ms": 10145,
+      "skippedThisRun": true
     },
     "atom-presale-formats": {
       "ok": false,
@@ -36,7 +37,8 @@
       "dataAt": "2026-11-22T17:08:13.977Z",
       "error": "bot check page (HTTP 403, title \"Just a moment...\") at https://www.atomtickets.com/theaters/amc-tysons-corner-16/9803?d=1795367799858",
       "blocked": true,
-      "ms": 1
+      "ms": 1,
+      "skippedThisRun": true
     },
     "atom-day-by-day": {
       "ok": false,
@@ -45,27 +47,27 @@
       "dataAt": "2026-11-22T17:08:13.977Z",
       "error": "bot check page (HTTP 403, title \"Just a moment...\") at https://www.atomtickets.com/theaters/amc-tysons-corner-16/9803?d=1795367799858",
       "blocked": true,
-      "ms": 0
+      "ms": 0,
+      "skippedThisRun": true
     },
     "4eye": {
       "ok": true,
       "file": "4eye.json",
       "dataDate": "2026-11-22",
-      "dataAt": "2026-11-22T17:04:16.798Z",
+      "dataAt": "2026-11-22T17:18:17.253Z",
       "error": null,
       "summary": {
         "rows": 15,
         "dates": 9
       },
       "notes": [],
-      "ms": 3364,
-      "skippedThisRun": true
+      "ms": 6584
     },
     "afi": {
       "ok": true,
       "file": "afi.json",
       "dataDate": "2026-11-22",
-      "dataAt": "2026-11-22T17:04:16.798Z",
+      "dataAt": "2026-11-22T17:18:17.253Z",
       "error": null,
       "summary": {
         "ids": 100,
@@ -73,8 +75,7 @@
         "errs": 0
       },
       "notes": [],
-      "ms": 39835,
-      "skippedThisRun": true
+      "ms": 41939
     }
   }
 }
