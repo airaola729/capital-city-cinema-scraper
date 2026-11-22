@@ -200,23 +200,33 @@ async function scrapeFeverTheater(ctx, slug) {
   const page = await openPage(ctx, URLS.fever + slug);
   try {
     await page.waitForSelector('[data-testid="showtimes-card"]', { timeout: 20000 }).catch(() => {});
-    const dates = await page.$$eval('[data-carousel="date-list"] time[datetime]', ts => [...new Set(ts.map(t => t.getAttribute('datetime')))]).catch(() => []);
+    await page.waitForFunction(() => !document.querySelector('[class*="skeleton"], [class*="loading"], [class*="spinner"], [aria-busy="true"]'), null, { timeout: 10000, polling: 200 }).catch(() => {});
+    const dates =await page.$$eval('[data-carousel="date-list"] time[datetime]', ts => [...new Set(ts.map(t => t.getAttribute('datetime')))]).catch(() => []);
     const active = await page.$eval('.date-tile--is-active time[datetime]', t => t.getAttribute('datetime')).catch(() => null) || today;
     const items = [], notes = [];
     const take = (dt, films) => { for (const f of films) for (const g of f.groups) for (const t of g.times) items.push({ date: dt, title: f.title, rating: f.rating, runtime: runtimeFrom(f.runtime), label: mapFormat(g.fmt, g.attrs), time: t }); };
     const first = await page.evaluate(FEVER_PARSE);
     if (active !== today) notes.push(`page opened on ${active}, not today`);
     take(active, first);
-    for (const dt of dates.filter(x => x !== active && x > active)) {
+    // After a click the page clears the cards, shows loading placeholders, requests
+    // .../movie_sessions_for_date/<date>/ and renders the cards when it answers.
+    const LOADERS = '[class*="skeleton"], [class*="loading"], [class*="spinner"], [aria-busy="true"]';
+    for (const dt of dates.filter(x => x > active)) {
       await sleep(PAUSE_MS);
+      const respP = page.waitForResponse(r => r.url().includes(`/movie_sessions_for_date/${dt}/`), { timeout: 20000 }).catch(() => null);
       const clicked = await page.evaluate(dt => { const t = document.querySelector(`[data-carousel="date-list"] time[datetime="${dt}"]`); const b = t && t.closest('button'); if (!b) return false; b.click(); return true; }, dt);
       if (!clicked) { notes.push(`no tile for ${dt}`); continue; }
-      const ok = await page.waitForFunction(dt => document.querySelector('.date-tile--is-active time')?.getAttribute('datetime') === dt, dt, { timeout: 10000 }).then(() => true, () => false);
-      if (!ok) { notes.push(`date ${dt} did not load`); break; }
-      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
-      await page.waitForTimeout(500);
-      const ch = challengeIn(0, await page.title(), '');
-      if (ch) throw new BlockedError(ch);
+      const resp = await respP;
+      if (!resp) { notes.push(`no schedule response for ${dt}`); break; }
+      if (resp.status() !== 200) {
+        const body = await resp.text().catch(() => '');
+        const ch = challengeIn(resp.status(), (body.match(/<title[^>]*>([^<]*)/i) || [])[1], body);
+        if (ch) throw new BlockedError(ch + ' on a date request');
+        notes.push(`HTTP ${resp.status()} for ${dt}`); continue;
+      }
+      const ready = await page.waitForFunction(({ dt, L }) => document.querySelector('.date-tile--is-active time')?.getAttribute('datetime') === dt && !document.querySelector(L), { dt, L: LOADERS }, { timeout: 10000, polling: 200 }).then(() => true, () => false);
+      if (!ready) { notes.push(`date ${dt} did not finish rendering`); continue; }
+      await page.waitForTimeout(300);
       take(dt, await page.evaluate(FEVER_PARSE));
     }
     if (!first.length) throw new Error('no films parsed for today' + (notes.length ? ' (' + notes.join('; ') + ')' : ''));
