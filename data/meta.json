@@ -1,7 +1,7 @@
 {
-  "runAt": "2026-11-22T18:33:29.804Z",
+  "runAt": "2026-11-22T18:37:19.052Z",
   "today": "2026-11-22",
-  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45055717789",
+  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45056071024",
   "afiSpecials": {
     "ok": true,
     "dataDate": "2026-11-22",
@@ -9,57 +9,13 @@
     "error": null
   },
   "sources": {
-    "alamo": {
-      "ok": true,
-      "ms": 164,
-      "summary": {
-        "alamo-dc": "10 films today, 40 days",
-        "alamo-cc": "9 films today, 40 days"
-      }
-    },
     "miracle": {
       "ok": true,
-      "ms": 4085,
+      "ms": 2769,
       "summary": {
         "events": 12,
         "days": 9,
         "today": 0
-      }
-    },
-    "fever": {
-      "ok": true,
-      "ms": 113869,
-      "summary": {
-        "hoffman": "24 films today, 15 dates read",
-        "tysons": "15 films today, 15 dates read",
-        "georgetown": "12 films today, 15 dates read"
-      }
-    },
-    "angelika": {
-      "ok": true,
-      "ms": 3247,
-      "summary": {
-        "today": 3,
-        "days": 1,
-        "soon": 12
-      }
-    },
-    "afi": {
-      "ok": true,
-      "ms": 25677,
-      "summary": {
-        "films": 100,
-        "errs": 0,
-        "today": 10,
-        "days": 33
-      }
-    },
-    "4eye": {
-      "ok": true,
-      "ms": 5005,
-      "summary": {
-        "rows": 15,
-        "today": 2
       }
     }
   },
