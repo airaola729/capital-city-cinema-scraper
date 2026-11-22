@@ -142,6 +142,20 @@ async function ATOM_DAY_BY_DAY({ timeoutMs }) {
   return out;
 }
 
+// Diagnostic only (not part of the data): what an in-page request for a theater page returns.
+async function ATOM_PROBE() {
+  const r = await fetch('/theaters/amc-georgetown-14/8353?d=' + Date.now(), { credentials: 'include' });
+  const t = await r.text();
+  return {
+    status: r.status, len: t.length,
+    title: ((t.match(/<title[^>]*>([^<]*)/i) || [])[1] || '').trim().slice(0, 80),
+    panels: (t.match(/showtime-panel/g) || []).length, serverFormat: t.includes('serverFormat'),
+    challenge: /challenge-platform|cf-chl|cf_chl_opt|just a moment/i.test(t),
+    pageUrl: location.href, pagePanels: document.querySelectorAll('.showtime-panel').length,
+    pageServerFormat: document.documentElement.innerHTML.includes('serverFormat'),
+  };
+}
+
 // STEP 2b: 4EYE Film Center -> rows [date, title, time, chips]
 async function FOUREYE({ timeoutMs }) {
   const ctl = new AbortController(); setTimeout(() => ctl.abort(), timeoutMs);
@@ -289,7 +303,11 @@ async function main() {
       failed = bad(r);
     }
     const describe = id => Array.isArray(r.out[id]) ? `${id}: ${r.out[id].length} films, selected date ${r.sel[id] || 'none'}` : `${id}: ${String(r.out[id]).slice(0, 120)}`;
-    if (failed.length === ATOM_IDS.length) throw new Error('all six theaters failed — ' + failed.map(describe).join('; '));
+    if (failed.length === ATOM_IDS.length) {
+      const probe = await evalWithTimeout(atomPage, ATOM_PROBE, 30000).catch(e => ({ probeError: String(e).slice(0, 200) }));
+      log('[atom] probe', JSON.stringify(probe));
+      throw new Error('all six theaters failed — ' + failed.map(describe).join('; ') + ' — probe ' + JSON.stringify(probe));
+    }
     return {
       data: r,
       summary: Object.fromEntries(ATOM_IDS.map(id => [id, Array.isArray(r.out[id]) ? r.out[id].length : 'ERR'])),
@@ -300,17 +318,21 @@ async function main() {
   await runSource('atom-presale-formats', async () => {
     if (!atomPage) throw atomErr;
     const r = await evalWithTimeout(atomPage, ATOM_PRESALE, 120000);
+    // An empty result can't be told apart from a failed read unless the main Atom read worked this run.
+    if (r.n === 0 && !(results.atom && results.atom.ok)) throw new Error('no presale links found and the main Atom read did not succeed this run, so the result is not trustworthy');
     return { data: r, summary: { n: r.n, fail: r.fail, hits: r.hits.length } };
   });
 
   await runSource('atom-day-by-day', async () => {
     if (!atomPage) throw atomErr;
     const isErr = v => typeof v === 'string';
-    const r = await evalWithTimeout(atomPage, ATOM_DAY_BY_DAY, 180000);
+    // A theater page always lists its dates; none found means the read failed (e.g. a block page).
+    const fix = r => { for (const id of DBD_IDS) if (r[id] && !isErr(r[id]) && !(r[id].dates || []).length) r[id] = 'ERR no dates found on the theater page'; return r; };
+    const r = fix(await evalWithTimeout(atomPage, ATOM_DAY_BY_DAY, 180000));
     const failed = DBD_IDS.filter(id => isErr(r[id]) || !r[id]);
     if (failed.length) {
       log(`[atom-day-by-day] retrying ${failed.join(', ')}`);
-      const r2 = await evalWithTimeout(atomPage, ATOM_DAY_BY_DAY, 180000);
+      const r2 = fix(await evalWithTimeout(atomPage, ATOM_DAY_BY_DAY, 180000));
       for (const id of failed) if (r2[id] && !isErr(r2[id])) r[id] = r2[id];
     }
     const still = DBD_IDS.filter(id => isErr(r[id]) || !r[id]);
