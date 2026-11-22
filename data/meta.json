@@ -1,0 +1,64 @@
+{
+  "runAt": "2026-11-22T17:04:16.798Z",
+  "today": "2026-11-22",
+  "mode": "headless",
+  "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/159.0.8154.6 Safari/537.36",
+  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45047289311",
+  "note": "A source is current only if sources[name].ok is true and sources[name].dataDate equals today (ET). Failed sources keep their last good file; dataDate/dataAt say when that file was written.",
+  "sources": {
+    "atom": {
+      "ok": false,
+      "file": "atom.json",
+      "dataDate": null,
+      "dataAt": null,
+      "error": "bot check page (HTTP 403, title \"Just a moment...\")",
+      "blocked": true,
+      "ms": 0
+    },
+    "atom-presale-formats": {
+      "ok": false,
+      "file": "atom-presale-formats.json",
+      "dataDate": null,
+      "dataAt": null,
+      "error": "bot check page (HTTP 403, title \"Just a moment...\")",
+      "blocked": true,
+      "ms": 0
+    },
+    "atom-day-by-day": {
+      "ok": false,
+      "file": "atom-day-by-day.json",
+      "dataDate": null,
+      "dataAt": null,
+      "error": "bot check page (HTTP 403, title \"Just a moment...\")",
+      "blocked": true,
+      "ms": 0
+    },
+    "4eye": {
+      "ok": true,
+      "file": "4eye.json",
+      "dataDate": "2026-11-22",
+      "dataAt": "2026-11-22T17:04:16.798Z",
+      "error": null,
+      "summary": {
+        "rows": 15,
+        "dates": 9
+      },
+      "notes": [],
+      "ms": 3364
+    },
+    "afi": {
+      "ok": true,
+      "file": "afi.json",
+      "dataDate": "2026-11-22",
+      "dataAt": "2026-11-22T17:04:16.798Z",
+      "error": null,
+      "summary": {
+        "ids": 100,
+        "films": 100,
+        "errs": 0
+      },
+      "notes": [],
+      "ms": 39835
+    }
+  }
+}
