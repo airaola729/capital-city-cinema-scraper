@@ -1,9 +1,9 @@
 {
-  "runAt": "2026-11-22T17:04:16.798Z",
+  "runAt": "2026-11-22T17:08:13.977Z",
   "today": "2026-11-22",
-  "mode": "headless",
-  "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/159.0.8154.6 Safari/537.36",
-  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45047289311",
+  "mode": "headed",
+  "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/159.0.0.0 Safari/537.36",
+  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45047681851",
   "note": "A source is current only if sources[name].ok is true and sources[name].dataDate equals today (ET). Failed sources keep their last good file; dataDate/dataAt say when that file was written.",
   "sources": {
     "atom": {
@@ -11,27 +11,42 @@
       "file": "atom.json",
       "dataDate": null,
       "dataAt": null,
-      "error": "bot check page (HTTP 403, title \"Just a moment...\")",
-      "blocked": true,
-      "ms": 0
+      "error": "all six theaters failed — hoffman: 0 films, selected date none; tysons: 0 films, selected date none; georgetown: 0 films, selected date none; alamo-dc: 0 films, selected date none; alamo-cc: 0 films, selected date none; afi: 0 films, selected date none",
+      "blocked": false,
+      "ms": 85
     },
     "atom-presale-formats": {
-      "ok": false,
+      "ok": true,
       "file": "atom-presale-formats.json",
-      "dataDate": null,
-      "dataAt": null,
-      "error": "bot check page (HTTP 403, title \"Just a moment...\")",
-      "blocked": true,
-      "ms": 0
+      "dataDate": "2026-11-22",
+      "dataAt": "2026-11-22T17:08:13.977Z",
+      "error": null,
+      "summary": {
+        "n": 0,
+        "fail": 0,
+        "hits": 0
+      },
+      "notes": [],
+      "ms": 27
     },
     "atom-day-by-day": {
-      "ok": false,
+      "ok": true,
       "file": "atom-day-by-day.json",
-      "dataDate": null,
-      "dataAt": null,
-      "error": "bot check page (HTTP 403, title \"Just a moment...\")",
-      "blocked": true,
-      "ms": 0
+      "dataDate": "2026-11-22",
+      "dataAt": "2026-11-22T17:08:13.977Z",
+      "error": null,
+      "summary": {
+        "miracle": {
+          "today": null,
+          "days": 0
+        },
+        "angelika": {
+          "today": null,
+          "days": 0
+        }
+      },
+      "notes": [],
+      "ms": 25
     },
     "4eye": {
       "ok": true,
@@ -44,7 +59,8 @@
         "dates": 9
       },
       "notes": [],
-      "ms": 3364
+      "ms": 3364,
+      "skippedThisRun": true
     },
     "afi": {
       "ok": true,
@@ -58,7 +74,8 @@
         "errs": 0
       },
       "notes": [],
-      "ms": 39835
+      "ms": 39835,
+      "skippedThisRun": true
     }
   }
 }
