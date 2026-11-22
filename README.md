@@ -30,3 +30,7 @@ A theater is current only when `ok` is true and `dataDate` equals today's date i
 The scraper never tries to get past a CAPTCHA or bot check. A challenge is recorded as `blocked`, and that source is skipped for the run.
 
 To run it by hand, use **Actions → Scrape showtimes → Run workflow**. You can limit a run to some sources. **Actions → Probe sources** checks whether candidate sources are reachable.
+
+## Archive
+
+`archive/pc-browser-task-prompt.md` is the original Claude scheduled-task prompt that scraped Atom Tickets, 4EYE and AFI through the browser on Abel's PC (in use until Nov 2026). `archive/github-task-prompt.md` is the current task prompt, which reads this repo's data. The Playwright port of the Atom scripts is in the git history before commit 610d49c.
