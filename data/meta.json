@@ -1,37 +1,51 @@
 {
-  "runAt": "2026-11-22T17:12:31.117Z",
+  "runAt": "2026-11-22T17:16:30.351Z",
   "today": "2026-11-22",
   "mode": "headed",
   "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/159.0.0.0 Safari/537.36",
-  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45048097088",
+  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45048463379",
   "note": "A source is current only if sources[name].ok is true and sources[name].dataDate equals today (ET). Failed sources keep their last good file; dataDate/dataAt say when that file was written.",
   "sources": {
     "atom": {
-      "ok": false,
+      "ok": true,
       "file": "atom.json",
-      "dataDate": null,
-      "dataAt": null,
-      "error": "all six theaters failed — hoffman: 0 films, selected date none; tysons: 0 films, selected date none; georgetown: 0 films, selected date none; alamo-dc: 0 films, selected date none; alamo-cc: 0 films, selected date none; afi: 0 films, selected date none — probe {\"status\":403,\"len\":6088,\"title\":\"Just a moment...\",\"panels\":0,\"serverFormat\":false,\"challenge\":true,\"pageUrl\":\"https://www.atomtickets.com/theaters/amc-georgetown-14/8353\",\"pagePanels\":29,\"pageServerFormat\":true}",
-      "blocked": false,
-      "ms": 72
+      "dataDate": "2026-11-22",
+      "dataAt": "2026-11-22T17:16:30.351Z",
+      "error": null,
+      "summary": {
+        "hoffman": 75,
+        "tysons": "ERR",
+        "georgetown": "ERR",
+        "alamo-dc": "ERR",
+        "alamo-cc": "ERR",
+        "afi": "ERR"
+      },
+      "notes": [
+        "failed tysons: ERR bot check page (HTTP 403, title \"Just a moment...\") at https://www.atomtickets.com/theaters/amc-tysons-corner-16/9803?d=1795367799858",
+        "failed georgetown: ERR bot check page (HTTP 403, title \"Just a moment...\") at https://www.atomtickets.com/theaters/amc-tysons-corner-16/9803?d=1795367799858",
+        "failed alamo-dc: ERR bot check page (HTTP 403, title \"Just a moment...\") at https://www.atomtickets.com/theaters/amc-tysons-corner-16/9803?d=1795367799858",
+        "failed alamo-cc: ERR bot check page (HTTP 403, title \"Just a moment...\") at https://www.atomtickets.com/theaters/amc-tysons-corner-16/9803?d=1795367799858",
+        "failed afi: ERR bot check page (HTTP 403, title \"Just a moment...\") at https://www.atomtickets.com/theaters/amc-tysons-corner-16/9803?d=1795367799858"
+      ],
+      "ms": 10145
     },
     "atom-presale-formats": {
       "ok": false,
       "file": "atom-presale-formats.json",
       "dataDate": "2026-11-22",
       "dataAt": "2026-11-22T17:08:13.977Z",
-      "error": "no presale links found and the main Atom read did not succeed this run, so the result is not trustworthy",
-      "blocked": false,
-      "ms": 21
+      "error": "bot check page (HTTP 403, title \"Just a moment...\") at https://www.atomtickets.com/theaters/amc-tysons-corner-16/9803?d=1795367799858",
+      "blocked": true,
+      "ms": 1
     },
     "atom-day-by-day": {
       "ok": false,
       "file": "atom-day-by-day.json",
       "dataDate": "2026-11-22",
       "dataAt": "2026-11-22T17:08:13.977Z",
-      "error": "both theaters failed — miracle: ERR no dates found on the theater page; angelika: ERR no dates found on the theater page",
-      "blocked": false,
-      "ms": 54
+      "error": "bot check page (HTTP 403, title \"Just a moment...\") at https://www.atomtickets.com/theaters/amc-tysons-corner-16/9803?d=1795367799858",
+      "blocked": true,
+      "ms": 0
     },
     "4eye": {
       "ok": true,
