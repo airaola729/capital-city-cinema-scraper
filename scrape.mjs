@@ -16,7 +16,8 @@
 // Output: data/showtimes.json (normalized per theater, per day), data/afi.json, data/meta.json.
 // A theater whose source fails keeps its previous entry with ok:false; a theater is current only
 // if ok is true and dataDate equals today (ET). It never tries to get past a CAPTCHA or bot check:
-// a challenge is recorded as "blocked" and that source is skipped for the run.
+// a challenge is recorded as "blocked" and that source is skipped for the run. (For the Smithsonian only, the page is
+// left open up to 30 s first, because si.edu's check moves on by itself for ordinary visitors; nothing more.)
 //
 // Env: ONLY=comma list of sources (alamo,fever,angelika,miracle,afi,4eye,smithsonian), DATA_DIR (default ./data),
 //      *_URL overrides and CHROME_PATH for testing, PAUSE_MS (default 1500).
@@ -143,14 +144,28 @@ async function getText(url, accept = 'text/html') {
   if (!r.ok) throw new Error(`HTTP ${r.status} for ${url}`);
   return body;
 }
-async function openPage(ctx, url) {
+// waitForClearMs: some sites show a "Just a moment..." page that a normal browser gets past on its own after a few
+// seconds, with no click. With this set, the page is simply left open for up to that long to see whether it moves on
+// by itself, as it would for any visitor. Nothing is clicked, solved or disguised; if it doesn't clear, it's blocked.
+async function openPage(ctx, url, { waitForClearMs = 0 } = {}) {
   const page = await ctx.newPage();
   try {
     const resp = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForTimeout(2500);
-    const status = resp ? resp.status() : 0;
-    const ch = challengeIn(status, await page.title().catch(() => ''), await page.content().catch(() => ''));
-    if (ch) throw new BlockedError(ch);
+    let status = resp ? resp.status() : 0;
+    const check = async () => challengeIn(status, await page.title().catch(() => ''), await page.content().catch(() => ''));
+    let ch = await check();
+    if (ch && waitForClearMs > 0) {
+      const until = Date.now() + waitForClearMs;
+      log('challenge page; waiting up to', Math.round(waitForClearMs / 1000), 's for it to clear on its own:', url);
+      while (ch && Date.now() < until) {
+        await page.waitForTimeout(2000);
+        await page.waitForLoadState('domcontentloaded').catch(() => {});
+        ch = await check();
+      }
+      if (!ch) { status = 200; log('challenge cleared on its own after', Math.round((waitForClearMs - (until - Date.now())) / 1000), 's'); await page.waitForTimeout(1500); }
+    }
+    if (ch) throw new BlockedError(ch + (waitForClearMs > 0 ? `; still there after waiting ${Math.round(waitForClearMs / 1000)} s` : ''));
     if (status >= 400) throw new Error(`HTTP ${status} for ${url}`);
     log('opened', url, status);
     return page;
@@ -513,7 +528,7 @@ async function main() {
     } finally { await page.close().catch(() => {}); }
   });
   await run('smithsonian', async () => {
-    const page = await openPage(ctx, URLS.smithsonian);
+    const page = await openPage(ctx, URLS.smithsonian, { waitForClearMs: 30000 });
     try {
       const raw = await evalWithTimeout(page, SMITHSONIAN, { terms: SI_TERMS, start: today, days: SI_DAYS, timeoutMs: 150000 }, 180000);
       if (!raw.pages) throw new Error('no showtime pages could be read' + (raw.errs.length ? ': ' + raw.errs.slice(0, 3).join('; ') : ''));
