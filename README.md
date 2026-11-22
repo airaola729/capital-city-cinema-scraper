@@ -1,18 +1,32 @@
 # capital-city-cinema-scraper
 
-Daily showtimes data for Capital City Cinema. A GitHub Actions workflow (`.github/workflows/scrape.yml`) runs every morning at 13:05 UTC (8:05 EST / 9:05 EDT). It opens Atom Tickets, 4EYE Film Center and AFI Silver in Playwright Chromium and commits the raw results to `data/`. The Claude scheduled task reads these files about an hour later.
+Daily showtimes data for Capital City Cinema. A GitHub Actions workflow (`.github/workflows/scrape.yml`) runs every morning at 13:05 UTC (8:05 EST / 9:05 EDT) and commits the results to `data/`. The Claude scheduled task reads these files about an hour later. Nothing has to be running at home.
+
+## Sources
+
+Each theater has its own source, and every source is readable from GitHub's servers without a bot check.
+
+| Theater | Source |
+|---|---|
+| Alamo Drafthouse DC Bryant Street, Crystal City | Alamo's own schedule JSON (`dc-metro-area` market) |
+| AMC Hoffman Center 22, Tysons Corner 16, Georgetown 14 | Fever theater pages (amctheatres.com blocks automated access) |
+| Angelika Pop-Up at Union Market | Angelika's own page (the scraper keeps the schedule JSON the page loads) |
+| The Miracle Theatre | Its own site's event list |
+| AFI Silver | Its own site (also saved raw as `data/afi.json` for the specials) |
+| 4EYE Film Center | Its own site |
+
+Atom Tickets was the original source, but Cloudflare challenges it from GitHub's servers, so it was dropped (Nov 2026; the old code is in the git history).
+
+## Files
 
 | File | Contents |
 |---|---|
-| `data/atom.json` | Today's showtimes for the six big theaters: `{sel, out}` |
-| `data/atom-presale-formats.json` | Premium formats / film prints for presale films in the next 14 days: `{n, fail, hits}` |
-| `data/atom-day-by-day.json` | The Miracle Theatre and Angelika Pop-Up, day by day: `{miracle:{today,dates,days}, angelika:{…}}` |
-| `data/4eye.json` | 4EYE Film Center rows: `[date, title, time, chips]` |
-| `data/afi.json` | AFI Silver films: `{count, errs, films}` |
-| `data/meta.json` | Run time (UTC), today's date (ET), and per-source `ok` / `dataDate` / `error` |
+| `data/showtimes.json` | Per theater: `ok`, `dataDate`, `error`, `days` (`YYYY-MM-DD` → films `{title, rating, runtime, released, groups: [[label, "7:15 PM", …]]}`), and `soon` (first dates known without showtimes) |
+| `data/afi.json` | AFI Silver films, raw: `{count, errs, films}` |
+| `data/meta.json` | Run time, today's date (ET), per-source status, and a per-theater summary |
 
-A source counts as current only when `meta.json` says `ok: true` and its `dataDate` is today's date in Eastern time. A source that fails keeps its last good file, and its error is recorded in `meta.json`. The scraper never tries to get past a CAPTCHA or bot check. A challenge page is recorded as `blocked`.
+A theater is current only when `ok` is true and `dataDate` equals today's date in Eastern time. A theater whose source fails keeps its last good data with `ok: false`. Format labels are: `""`, IMAX, Dolby, Laser, Prime, XL, 4DX, 3D, Big Show, ScreenX, Open Caption, Sensory, 35mm, 70mm, 16mm and 4K.
 
-To run it by hand, use **Actions → Scrape showtimes → Run workflow**. You can choose `headed` mode (Chromium under xvfb) or run only some sources.
+The scraper never tries to get past a CAPTCHA or bot check. A challenge is recorded as `blocked`, and that source is skipped for the run.
 
-**Status (2026-11-22):** 4EYE and AFI Silver scrape fine from GitHub. Atom Tickets is behind Cloudflare, which challenges requests from GitHub's servers. Headless Chromium is challenged on the first page. Headed Chromium gets one theater page and is challenged on the next. So scheduled runs only scrape `4eye,afi`. The Atom code is still here, and you can run it by hand by listing the atom sources.
+To run it by hand, use **Actions → Scrape showtimes → Run workflow**. You can limit a run to some sources. **Actions → Probe sources** checks whether candidate sources are reachable.

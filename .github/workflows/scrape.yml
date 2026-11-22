@@ -5,15 +5,10 @@ on:
     - cron: '5 13 * * *'   # 13:05 UTC = 8:05 EST / 9:05 EDT
   workflow_dispatch:
     inputs:
-      mode:
-        description: 'Browser mode'
-        type: choice
-        options: [headless, headed]
-        default: headless
-      sources:
-        description: 'Sources, comma-separated: 4eye, afi, atom, atom-presale-formats, atom-day-by-day (Atom is off by default: Cloudflare blocks it from GitHub)'
+      only:
+        description: 'Only these sources, comma-separated (blank = all): alamo, fever, angelika, miracle, afi, 4eye'
         required: false
-        default: '4eye,afi'
+        default: ''
 
 permissions:
   contents: write
@@ -27,9 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      MODE: ${{ inputs.mode || 'headless' }}
-      # Scheduled runs skip Atom Tickets: Cloudflare challenges it from GitHub's servers (tested 2026-11-22).
-      SOURCES: ${{ inputs.sources || '4eye,afi' }}
+      ONLY: ${{ inputs.only || '' }}
     steps:
       - uses: actions/checkout@v5
 
@@ -43,12 +36,7 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Scrape
-        run: |
-          if [ "$MODE" = "headed" ]; then
-            xvfb-run -a node scrape.mjs
-          else
-            node scrape.mjs
-          fi
+        run: node scrape.mjs
 
       - name: Commit data
         run: |
@@ -58,7 +46,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "No data changes."
           else
-            git commit -m "data: $(TZ=America/New_York date +%F) ($MODE)"
+            git commit -m "data: $(TZ=America/New_York date +%F)"
             git pull --rebase origin main
             git push origin HEAD:main
           fi
