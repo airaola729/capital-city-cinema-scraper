@@ -10,8 +10,9 @@ name: Scrape Smithsonian IMAX (home runner)
 # once it succeeds. While the PC is off, the newest queued run replaces the older ones (see concurrency) and
 # starts as soon as the PC is back. A manual run always scrapes.
 on:
-  schedule:
-    - cron: '20 * * * *'   # hourly at :20; the first run of the ET day that matters is 10:20 UTC, before the publish
+  # No schedule: si.edu shows this automated browser a check it doesn't get past (Nov 2026), so the daily read
+  # is done in Abel's own Chrome by a Claude scheduled task (scripts/smithsonian-browser.js +
+  # scripts/merge-smithsonian.mjs). Kept for manual tests.
   workflow_dispatch:
 
 permissions:
