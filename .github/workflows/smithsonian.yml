@@ -4,9 +4,14 @@ name: Scrape Smithsonian IMAX (home runner)
 # where si.edu loads like it does for any visitor. If the PC is off, GitHub holds the job and runs it when the
 # runner comes back online (it gives up after 24 hours). It never tries to get past a bot check: a challenge is
 # recorded as blocked in data/smithsonian.json.
+#
+# Retries: the schedule fires every hour, but a run only scrapes if today's data (ET) isn't in yet for both
+# theaters. So after a failed or blocked attempt it tries again every hour the PC is on, and stops for the day
+# once it succeeds. While the PC is off, the newest queued run replaces the older ones (see concurrency) and
+# starts as soon as the PC is back. A manual run always scrapes.
 on:
   schedule:
-    - cron: '20 10 * * *'   # 10:20 UTC, before the GitHub scrape and well before the 10:17 ET publish
+    - cron: '20 * * * *'   # hourly at :20; the first run of the ET day that matters is 10:20 UTC, before the publish
   workflow_dispatch:
 
 permissions:
@@ -36,19 +41,46 @@ jobs:
         with:
           node-version: 22
 
+      - name: Already have today's data?
+        id: have
+        shell: bash
+        run: |
+          node -e "
+            const fs = require('fs');
+            const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+            let done = false;
+            try {
+              const t = JSON.parse(fs.readFileSync('data/smithsonian.json', 'utf8')).theaters || {};
+              done = ['si-lockheed', 'si-airbus'].every(id => t[id] && t[id].ok && t[id].dataDate === today);
+            } catch (e) {}
+            if (process.env.GITHUB_EVENT_NAME === 'workflow_dispatch') done = false;
+            console.log(done ? 'Both theaters are current for ' + today + '; nothing to do.' : 'Not current for ' + today + '; scraping.');
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'done=' + done + '\\n');
+          "
+
       - name: Install Playwright
+        if: steps.have.outputs.done != 'true'
         shell: bash
         run: |
           npm install --no-audit --no-fund
           npx playwright install chromium
 
       - name: Scrape
+        if: steps.have.outputs.done != 'true'
         shell: bash
         run: node scrape.mjs
 
+      # Only commit when at least one theater came back current, so hourly retries of a blocked day
+      # don't each add a commit. The file keeps its last good data until then.
       - name: Commit data
+        if: steps.have.outputs.done != 'true'
         shell: bash
         run: |
+          if ! node -e "const t=require('./data/smithsonian.json').theaters||{};const d=new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});process.exit(Object.values(t).some(x=>x.ok&&x.dataDate===d)?0:1)"; then
+            echo "No theater is current; not committing. Will try again next hour."
+            git checkout -- data/smithsonian.json
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/smithsonian.json
