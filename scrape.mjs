@@ -7,6 +7,8 @@
 //   miracle                   The Miracle Theatre's own site (event list)
 //   afi                       AFI Silver's own site (also saved raw as data/afi.json for the specials)
 //   4eye                      4EYE Film Center's own site
+//   suns                      Suns Cinema's own site (schema.org data on its home, Coming Soon and film pages;
+//                             robots.txt disallows its /purchase/ ticket pages, which are never fetched)
 //   si-lockheed, si-airbus    Smithsonian Theaters' own pages (Lockheed Martin IMAX on the Mall, Airbus IMAX at
 //                             Udvar-Hazy); only feature films (75+ minutes) are kept, not the museum documentaries.
 //                             si.edu sends GitHub's servers a Cloudflare check, so this source is opt-in (ONLY=smithsonian)
@@ -19,7 +21,7 @@
 // a challenge is recorded as "blocked" and that source is skipped for the run. (For the Smithsonian only, the page is
 // left open up to 30 s first, because si.edu's check moves on by itself for ordinary visitors; nothing more.)
 //
-// Env: ONLY=comma list of sources (alamo,fever,angelika,miracle,afi,4eye,smithsonian), DATA_DIR (default ./data),
+// Env: ONLY=comma list of sources (alamo,fever,angelika,miracle,afi,4eye,suns,smithsonian), DATA_DIR (default ./data),
 //      *_URL overrides and CHROME_PATH for testing, PAUSE_MS (default 1500).
 
 import { chromium } from 'playwright';
@@ -38,6 +40,7 @@ const URLS = {
   fever: process.env.FEVER_BASE || 'https://feverup.com/movies/en/united-states/movie-theaters/',
   angelika: process.env.ANGELIKA_URL || 'https://angelikafilmcenter.com/dc',
   miracle: process.env.MIRACLE_URL || 'https://themiracletheatre.com/event-category/in-theatre-movies/',
+  suns: process.env.SUNS_URL || 'https://sunscinema.com/',
   afi: process.env.AFI_URL || 'https://silver.afi.com/now-playing/',
   foureye: process.env.FOUREYE_URL || 'https://4eyefilmcenter.org/now-playing/',
   smithsonian: process.env.SI_URL || 'https://www.si.edu/theaters/lockheedmartin',
@@ -47,9 +50,9 @@ const FEVER_THEATERS = { hoffman: 'amc-hoffman-center-22', tysons: 'amc-tysons-c
 const SI_TERMS = { 'si-lockheed': 52, 'si-airbus': 53 };   // si.edu taxonomy terms of the two IMAX theaters
 const SI_DAYS = 15;                                          // the Smithsonian posts showtimes about two weeks ahead
 const SI_MIN_RUNTIME = 75;                                   // museum documentaries run 25-50 minutes; features 90+
-const THEATERS = ['hoffman', 'tysons', 'georgetown', 'alamo-dc', 'alamo-cc', 'afi', 'miracle', 'angelika', '4eye'];
+const THEATERS = ['hoffman', 'tysons', 'georgetown', 'alamo-dc', 'alamo-cc', 'afi', 'miracle', 'angelika', '4eye', 'suns'];
 const OPT_IN = ['smithsonian'];   // sources that only run when named in ONLY
-const SOURCE_OF = { hoffman: 'fever', tysons: 'fever', georgetown: 'fever', 'alamo-dc': 'alamo', 'alamo-cc': 'alamo', afi: 'afi', miracle: 'miracle', angelika: 'angelika', '4eye': '4eye', 'si-lockheed': 'smithsonian', 'si-airbus': 'smithsonian' };
+const SOURCE_OF = { hoffman: 'fever', tysons: 'fever', georgetown: 'fever', 'alamo-dc': 'alamo', 'alamo-cc': 'alamo', afi: 'afi', miracle: 'miracle', angelika: 'angelika', '4eye': '4eye', suns: 'suns', 'si-lockheed': 'smithsonian', 'si-airbus': 'smithsonian' };
 
 const today = new Date().toLocaleDateString('en-CA', { timeZone: ET });
 const addDays = (d, n) => new Date(Date.parse(d + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
@@ -291,6 +294,57 @@ async function scrapeAngelika(ctx) {
   } finally { await page.close().catch(() => {}); }
 }
 
+// Suns Cinema (Mount Pleasant): the schema.org data in its own pages. The home page lists today's screenings, the
+// Coming Soon page every later one, and each film showing today also gets its own page read for its later dates.
+// Each ScreeningEvent has a local start time ("2026-11-23T18:00:00-05:00"); runtime and release date come from the Movie.
+// Suns gives no MPAA rating or projection format, so those stay empty. Ticket (/purchase/) pages are never fetched.
+function ldObjects(html) {
+  const out = [];
+  for (const m of html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+    let j; try { j = JSON.parse(m[1]); } catch { continue; }
+    const walk = o => { if (Array.isArray(o)) o.forEach(walk); else if (o && typeof o === 'object') { if (o['@type']) out.push(o); if (o['@graph']) walk(o['@graph']); } };
+    walk(j);
+  }
+  return out;
+}
+const isoMinutes = d => { const m = String(d || '').match(/^PT(?:(\d+)H)?(?:(\d+)M)?/i); return m && (m[1] || m[2]) ? (+m[1] || 0) * 60 + (+m[2] || 0) : null; };
+async function scrapeSuns() {
+  const base = new URL(URLS.suns);
+  const types = o => [].concat(o['@type'] || []);
+  const key = s => unescape(String(s || '')).toLowerCase().replace(/[’‘`]/g, "'").replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
+  const movies = [], events = new Map();
+  const take = html => {
+    const objs = ldObjects(html);
+    for (const o of objs) {
+      if (types(o).includes('Movie') && o.name) movies.push(o);
+      if (types(o).includes('ScreeningEvent') && o.startDate) events.set(o.url || `${o.name}|${o.startDate}`, o);
+    }
+    return objs;
+  };
+  const home = take(await getText(URLS.suns));
+  if (!home.some(o => types(o).includes('MovieTheater'))) throw new Error('schema.org schedule data not found on the home page');
+  const showingToday = [...new Set(movies.map(m => m.url).filter(u => { try { const x = new URL(u); return x.host === base.host && /^\/movies\/[^/]+\/?$/.test(x.pathname); } catch { return false; } }))];
+  await sleep(PAUSE_MS);
+  take(await getText(new URL('/upcoming-films-3/', base).href));
+  let filmPages = 0;
+  for (const u of showingToday.slice(0, 10)) { await sleep(PAUSE_MS); take(await getText(u)); filmPages++; }
+  const byId = new Map(movies.filter(m => m['@id']).map(m => [m['@id'], m]));
+  const byName = new Map(movies.map(m => [key(m.name), m]));
+  const items = [];
+  for (const e of events.values()) {
+    if (/Cancelled|Postponed|MovedOnline/i.test(e.eventStatus || '')) continue;
+    const mm = String(e.startDate).match(/^(\d{4}-\d\d-\d\d)T(\d\d:\d\d)/); if (!mm) continue;
+    const evTitle = String(e.name || '').replace(/\s+-\s+\d{1,2}\/\d{1,2}\/\d{2,4}\s*@.*$/, '').trim();
+    const w = e.workPresented || {};
+    const m = byId.get(w['@id']) || byName.get(key(w.name)) || byName.get(key(evTitle)) || {};
+    const title = smartTitle(unescape(m.name || w.name || evTitle));
+    if (!title) continue;
+    items.push({ date: mm[1], title, rating: null, runtime: runtimeFrom(isoMinutes(m.duration)), released: /^\d{4}-\d\d-\d\d$/.test(m.dateCreated || '') ? m.dateCreated : null, label: '', time: from24(mm[2]) });
+  }
+  if (!items.length) throw new Error(`no screenings found in the schedule data (${movies.length} films, ${events.size} events)`);
+  return { days: buildDays(items), soon: [], events: events.size, filmPages };
+}
+
 // The Miracle Theatre: Modern Events Calendar list (month dividers + "04 Dec" + "4:30 pm").
 async function scrapeMiracle() {
   const h = await getText(URLS.miracle);
@@ -490,6 +544,7 @@ async function main() {
   // Plain HTTP sources first.
   await run('alamo', async () => { const r = await scrapeAlamo(); Object.assign(results, r); return Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v.error || `${countFilms(v.days)} films today, ${Object.keys(v.days).length} days`])); });
   await run('miracle', async () => { const r = await scrapeMiracle(); results.miracle = r; return { events: r.events, days: Object.keys(r.days).length, today: countFilms(r.days) }; });
+  await run('suns', async () => { const r = await scrapeSuns(); results.suns = r; return { events: r.events, filmPages: r.filmPages, days: Object.keys(r.days).length, today: countFilms(r.days) }; });
 
   // Browser sources.
   let browser = null, ctx = null;
