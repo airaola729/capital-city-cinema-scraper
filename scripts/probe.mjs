@@ -1,4 +1,4 @@
-// Diagnostic (one-off, 2026-11-23): can the Avalon Theatre and Suns Cinema be read from GitHub's servers,
+// Diagnostic (one-off, 2026-11-23, run 2): Avalon Theatre and Suns Cinema — schedule depth and fields.
 // and where does each full schedule live? Read-only, light: robots.txt checked first, <=10 loads per site,
 // 2 s between loads, no purchase/checkout steps, and it stops a site at the first sign of a bot check.
 import { chromium } from 'playwright';
@@ -58,7 +58,7 @@ function makeSite(name, ctx) {
       const t = await r.text();
       L('status', r.status, 'final', r.url, 'content-type', r.headers.get('content-type'));
       L(clip(t, 2000));
-      if (r.ok && !/<html/i.test(t.slice(0, 500))) rules = parseRobots(t);
+      if (!/<html/i.test(t.slice(0, 500)) && /user-agent/i.test(t)) { rules = parseRobots(t); if (!r.ok) L('(robots body served with non-200 status; rules applied anyway)'); }
       L('rules applied to us (User-agent: * unless our name is listed):', JSON.stringify(rules));
     } catch (e) { L('robots fetch error:', e.message); }
     site.robots[origin] = rules; return rules;
@@ -94,6 +94,13 @@ function makeSite(name, ctx) {
     L('challenge signs:', chal ? `YES ("${chal[0]}")` : 'none');
     const ld = await p.$$eval('script[type="application/ld+json"]', els => els.map(e => e.textContent)).catch(() => []);
     L('JSON-LD blocks:', ld.length); ld.slice(0, 6).forEach((b, i) => L(`  JSON-LD #${i + 1}:`, clip(b.replace(/\s+/g, ' '), 1500)));
+    const evs = [];
+    for (const b of ld) { try { const j = JSON.parse(b); const walk = o => { if (Array.isArray(o)) o.forEach(walk); else if (o && typeof o === 'object') { if (/Event/.test(o['@type'] || '')) evs.push(o); if (o['@graph']) walk(o['@graph']); } }; walk(j); } catch {} }
+    if (evs.length) {
+      const ds = evs.map(e => e.startDate).filter(Boolean).sort();
+      L(`JSON-LD events: ${evs.length}, startDate range ${ds[0]} .. ${ds[ds.length - 1]}`);
+      evs.slice(0, 40).forEach(e => L(`  ev: ${clip(e.name, 70)} | ${e.startDate} | ${[].concat(e.offers || []).map(o => (o.price ?? '') + ' ' + (o.availability || '').replace('https://schema.org/', '')).join(',')} | ${clip(e.url || [].concat(e.offers || [])[0]?.url, 90)}`));
+    }
     if (chal || status === 403 || status === 429 || status === 503) {
       L('TEXT HEAD:', clip(text.replace(/\s+/g, ' '), 600));
       if (chal) throw new Challenge(`challenge on ${url}: ${chal[0]}`);
@@ -123,11 +130,11 @@ function after(text, marker, n) {
 
 async function terms(site, p) {
   H(`[${site.name}] footer policy links`);
-  const ls = (await links(p)).filter(l => /terms|privacy|polic/i.test(l.t) || /terms|privacy|polic/i.test(l.h));
+  const ls = (await links(p)).filter(l => /terms|privacy|polic|agreement/i.test(l.t) || /terms|privacy|polic|agreement/i.test(l.h));
   const foot = ls.filter(l => l.foot); const use = foot.length ? foot : ls;
   if (!foot.length) L('(no policy links inside a footer element; listing policy links found anywhere)');
   dumpLinks(use, 20);
-  const t = use.find(l => /terms/i.test(l.t) || /terms/i.test(l.h));
+  const t = use.find(l => /terms|agreement/i.test(l.t) || /terms|agreement/i.test(l.h));
   if (!t) { L('No terms page link found.'); return; }
   const r = await site.load(t.h, 'TERMS page');
   if (!r) return;
@@ -138,143 +145,113 @@ async function terms(site, p) {
 }
 
 // ---------- Avalon ----------
+// ---------- Avalon (run 2: calendar day pages, Visitor Agreement, full Agile list) ----------
 async function avalon(ctx) {
   const site = makeSite('AVALON', ctx);
   try {
     const r = await site.load('https://theavalon.org/films', 'FILMS page');
     if (!r) return;
     const { p } = r;
-    H('[AVALON] "Showing Today at the Theater" section (page text after marker)');
-    after(r.text, 'Showing Today', 3000);
-    H('[AVALON] "Showings by Calendar" (before scroll)');
-    after(r.text, 'Showings by Calendar', 3000);
-    // scroll to let any script-loaded calendar appear (no extra page load)
-    L('-- scrolling page to bottom; network calls during scroll appear as [net] lines --');
-    await p.evaluate(async () => { for (let y = 0; y < document.body.scrollHeight; y += 600) { window.scrollTo(0, y); await new Promise(r => setTimeout(r, 150)); } });
-    await p.waitForTimeout(4000);
-    const text2 = await p.evaluate(() => document.body.innerText);
-    H('[AVALON] "Showings by Calendar" (after scroll)');
-    after(text2, 'Showings by Calendar', 3000);
-    const iframes = await p.$$eval('iframe', fs => fs.map(f => f.src)); L('iframes:', JSON.stringify(iframes));
-    H('[AVALON] films with Learn More / Buy Tickets');
-    const films = await p.evaluate(() => {
-      const out = []; const seen = new Set();
-      for (const a of document.querySelectorAll('a')) {
-        if (!/learn more/i.test(a.innerText)) continue;
-        let c = a.parentElement, title = '';
-        for (let i = 0; i < 8 && c; i++, c = c.parentElement) {
-          const h = c.querySelector('h1,h2,h3,h4,h5,[class*="title"]');
-          if (h && h.innerText.trim()) { title = h.innerText.trim(); break; }
-        }
-        const buy = c ? [...c.querySelectorAll('a')].find(b => /buy tickets|tickets/i.test(b.innerText)) : null;
-        const k = a.href; if (seen.has(k)) continue; seen.add(k);
-        out.push({ title, learn: a.href, buy: buy ? buy.href : null, block: c ? c.innerText.replace(/\s+/g, ' ').slice(0, 300) : '' });
-      }
-      return out;
+    H('[AVALON] "Showing Today at the Theater" (structured)');
+    after(r.text, 'Showing Today', 400);
+    H('[AVALON] calendar: date links and controls');
+    const cal = await p.evaluate(() => {
+      const as = [...document.querySelectorAll('a[href*="?date=2"]')].map(a => ({ h: a.href, t: a.innerText.trim(), tip: (a.getAttribute('title') || a.getAttribute('data-title') || a.getAttribute('aria-label') || '').slice(0, 200) }));
+      const m = [...document.querySelectorAll('*')].find(e => e.children.length < 4 && /showings by calendar/i.test(e.textContent || '') && (e.textContent || '').length < 60);
+      let box = m; for (let i = 0; i < 4 && box && box.querySelectorAll('a[href*="?date=2"]').length === 0; i++) box = box.parentElement;
+      const ctrls = box ? [...box.querySelectorAll('a,button')].filter(x => !/\?date=2/.test(x.href || '')).map(x => (x.tagName + ' "' + x.innerText.trim() + '" ' + (x.getAttribute('href') || '') + ' ' + (x.getAttribute('onclick') || '') + ' ' + (x.className || '')).slice(0, 200)) : [];
+      return { as, ctrls, boxHtmlHead: box ? box.outerHTML.slice(0, 1500) : '' };
     });
-    L('Learn More links found:', films.length);
-    films.slice(0, 5).forEach((f, i) => L(`  #${i + 1} title="${f.title}" learn=${f.learn} buy=${f.buy}\n      block: ${f.block}`));
+    const dates = [...new Set(cal.as.map(a => (a.h.match(/date=(\d{8})/) || [])[1]).filter(Boolean))].sort();
+    L(`calendar date links: ${dates.length} unique; first ${dates[0]} last ${dates[dates.length - 1]}`); L('  all:', dates.join(' '));
+    cal.as.slice(0, 5).forEach(a => L(`  sample: "${a.t}" tip="${a.tip}" -> ${a.h}`));
+    L('calendar controls (non-date links/buttons):'); cal.ctrls.forEach(c => L('  ', c));
+    L('calendar HTML head:', cal.boxHtmlHead.replace(/\s+/g, ' '));
     const all = await links(p);
-    L('All "Buy Tickets" hrefs (first 10):'); all.filter(l => /buy tickets/i.test(l.t)).slice(0, 10).forEach(l => L('  ', l.h));
-    H('[AVALON] link dump of films page'); dumpLinks(all, 120);
-    H('[AVALON] date/time lines on films page'); dateTimeLines(text2, 60);
+    L('"Buy Tickets" list link(s):'); [...new Set(all.filter(l => /list\.aspx/i.test(l.h)).map(l => l.h))].forEach(h => L('  ', h));
 
     await terms(site, p);
 
-    const detail = films[0]?.learn;
-    if (detail) {
-      const d = await site.load(detail, `FILM DETAIL page (${films[0].title})`);
-      if (d) {
-        H('[AVALON] film detail: text head'); L(clip(d.text, 3000));
-        H('[AVALON] film detail: date/time lines'); dateTimeLines(d.text, 80);
-        const dl = await links(d.p); L('ticket links on detail page:'); dl.filter(l => /ticket|agile/i.test(l.t + l.h)).slice(0, 15).forEach(l => L(`  "${clip(l.t, 60)}" -> ${l.h}`));
-      }
-    } else L('No film detail link found.');
+    // one day page a few days out, and the last calendar date
+    const pick = [dates.find(d => d >= '20261126'), dates[dates.length - 1]].filter((d, i, a) => d && a.indexOf(d) === i);
+    for (const d of pick) {
+      const dp = await site.load(`https://www.theavalon.org/films/?date=${d}`, `CALENDAR DAY page ${d}`);
+      if (!dp) continue;
+      H(`[AVALON] day ${d}: text after the film menu`);
+      const i = dp.text.search(/Now Playing and Coming Soon|Showing|Showtimes/i);
+      L(clip(dp.text.slice(Math.max(0, i), Math.max(0, i) + 2500), 2500));
+      H(`[AVALON] day ${d}: time links (title block + time + href)`);
+      const tl = await dp.p.evaluate(() => [...document.querySelectorAll('a[href*="ticketsearchcriteria"], a[href*="evtinfo"]')].filter(a => /\d:\d\d/.test(a.innerText)).map(a => { let c = a.parentElement; for (let k = 0; k < 4 && c && !/min/.test(c.innerText); k++) c = c.parentElement; return { t: a.innerText.trim(), h: a.href, ctx: (c ? c.innerText : '').replace(/\s+/g, ' ').slice(0, 160) }; }));
+      tl.slice(0, 30).forEach(x => L(`  ${x.t} | ${x.ctx} | ${clip(x.h, 120)}`));
+    }
 
-    const buy = films.map(f => f.buy).find(h => h && /agileticketing\.net/i.test(h)) || all.map(l => l.h).find(h => /agileticketing\.net/i.test(h));
-    if (buy && !/cart|checkout|purchase|payment/i.test(buy)) {
-      const t = await site.load(buy, 'AGILE TICKETING listing page (listing only, nothing clicked)');
+    // the full Agile list (one ticketing listing page; nothing clicked)
+    const list = all.map(l => l.h).find(h => /agileticketing\.net\/websales\/pages\/list\.aspx/i.test(h));
+    if (list) {
+      const t = await site.load(list, 'AGILE TICKETING full list page (listing only, nothing clicked)');
       if (t) {
-        H('[AVALON] agile listing: text head'); L(clip(t.text, 2500));
-        H('[AVALON] agile listing: date/time lines'); dateTimeLines(t.text, 60);
+        H('[AVALON] agile list: text head'); L(clip(t.text, 5000));
+        H('[AVALON] agile list: date/time lines'); const dl = dateTimeLines(t.text, 150);
+        L('distinct dates seen:', [...new Set(dl.map(s => (s.match(/\b(mon|tue|wed|thu|fri|sat|sun)[a-z]*,?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}/i) || [])[0]).filter(Boolean))].join(' | '));
         const html = await t.p.content();
-        const feeds = [...new Set(html.match(/https?:\/\/[^"'\s<>]*(feed|\.xml|\.json|rss|xmlfeed|api)[^"'\s<>]*/gi) || [])];
+        const feeds = [...new Set(html.match(/https?:\/\/[^"'\s<>]*(feed|\.xml|\.json|rss|xmlfeed)[^"'\s<>]*/gi) || [])];
         L('feed-like URLs in HTML:', feeds.length); feeds.slice(0, 20).forEach(f => L('  ', clip(f, 250)));
-        L('JSON/XML responses in network log:'); site.net.filter(n => /agile/i.test(n.url) && /json|xml/i.test(n.ct)).forEach(n => L(`  ${n.status} ${n.ct} ${n.url}`));
+        L('agile JSON/XML responses:'); site.net.filter(n => /agile/i.test(n.url) && /json|xml/i.test(n.ct)).forEach(n => L(`  ${n.status} ${n.ct} ${n.url}`));
       }
-    } else L('No usable agileticketing Buy Tickets link found:', buy);
+    }
   } catch (e) {
     if (e instanceof Challenge) H(`[AVALON] BOT CHECK — stopped probing this site: ${e.message}`);
     else { H('[AVALON] ERROR'); L(e.stack || e.message); }
   } finally { L(`[AVALON] page loads used: ${site.loads}`); if (site.page) await site.page.close(); }
 }
 
-// ---------- Suns ----------
+// ---------- Suns (run 2: future day pages, Future Dates control, Coming Soon, a repertory film page) ----------
 async function suns(ctx) {
   const site = makeSite('SUNS', ctx);
-  const showFilms = async p => p.evaluate(() => {
-    // generic: any element containing a /purchase/ link -> walk up to a block with a heading
-    const out = []; const seen = new Set();
-    for (const a of document.querySelectorAll('a[href*="/purchase/"]')) {
-      let c = a.parentElement;
-      for (let i = 0; i < 6 && c; i++, c = c.parentElement) if (c.querySelector('h1,h2,h3,h4,[class*="title"]')) break;
-      const key = c ? c : a; if (seen.has(key)) continue; seen.add(key);
-      const h = c?.querySelector('h1,h2,h3,h4,[class*="title"]');
-      out.push({ title: h ? h.innerText.trim() : '', block: (c || a).innerText.replace(/\s+/g, ' ').slice(0, 300), times: [...(c || a).querySelectorAll('a[href*="/purchase/"]')].map(x => x.innerText.trim() + (x.className ? ` {${x.className}}` : '')).slice(0, 12) });
-    }
-    return out;
-  });
+  const block = async (p, label) => {
+    H(`[SUNS] ${label}: films and times`);
+    const rows = await p.evaluate(() => [...document.querySelectorAll('a[href*="/movies/"]')].filter(a => a.innerText.trim() && !/trailer|details/i.test(a.innerText)).map(a => {
+      let c = a.parentElement; for (let k = 0; k < 5 && c && !/\d:\d\d/.test(c.innerText); k++) c = c.parentElement;
+      return { title: a.innerText.trim(), ctx: c ? c.innerText.replace(/\s+/g, ' ').slice(0, 200) : '' };
+    }));
+    [...new Map(rows.map(r => [r.title, r])).values()].slice(0, 25).forEach(r => L(`  ${r.title} || ${r.ctx}`));
+  };
   try {
     const r = await site.load('https://sunscinema.com/', 'HOME page');
     if (!r) return;
     const { p } = r;
-    const all = await links(p);
-    H('[SUNS] home: text head'); L(clip(r.text, 5000));
-    H('[SUNS] home: link dump'); dumpLinks(all, 150);
-    const fut = all.find(l => /future dates/i.test(l.t));
-    L('Future Dates link:', fut ? fut.h : 'not found');
-    const dayLinks = all.filter(l => !/\/purchase\//.test(l.h) && (/^(mon|tue|wed|thu|fri|sat|sun|today|tomorrow)/i.test(l.t) || /\d{4}-\d{2}-\d{2}|[?&](date|day)=/i.test(l.h)));
-    L('Day links:'); dayLinks.forEach(l => L(`  "${l.t}" -> ${l.h}`));
-    H('[SUNS] home: films (blocks around /purchase/ links; links NOT opened)');
-    const f0 = await showFilms(p); f0.forEach((f, i) => L(`  #${i + 1} "${f.title}" times=${JSON.stringify(f.times)}\n      block: ${f.block}`));
-    L('sold-out mentions:', (r.text.match(/sold out/gi) || []).length);
-    H('[SUNS] home: date/time lines'); dateTimeLines(r.text, 60);
+    H('[SUNS] "Future Dates" element');
+    const fd = await p.evaluate(() => {
+      const el = [...document.querySelectorAll('*')].find(e => e.children.length === 0 && /future dates/i.test(e.textContent || ''));
+      if (!el) return null;
+      let c = el; for (let i = 0; i < 3 && c.parentElement; i++) c = c.parentElement;
+      return { tag: el.tagName, attrs: [...el.attributes].map(a => a.name + '=' + a.value).join(' '), parent: c.outerHTML.slice(0, 2500) };
+    });
+    L(fd ? `tag=${fd.tag} attrs=${fd.attrs}\nparent HTML: ${fd.parent.replace(/\s+/g, ' ')}` : 'not found');
+    const opts = await p.$$eval('select option, [data-date], input[type="date"]', els => els.map(e => (e.tagName + ' ' + (e.value || '') + ' ' + (e.getAttribute('data-date') || '') + ' ' + e.textContent.trim()).slice(0, 120)));
+    L('date options/data-date elements:', opts.length); opts.slice(0, 60).forEach(o => L('  ', o));
 
-    await terms(site, p);
-
-    const day = dayLinks.find(l => l.h.replace(/\/$/, '') !== 'https://sunscinema.com' && !/today/i.test(l.t)) || dayLinks[1];
-    if (day) {
-      const d = await site.load(day.h, `DAY page ("${day.t}")`);
-      if (d) {
-        H('[SUNS] day page: text head'); L(clip(d.text, 3000));
-        H('[SUNS] day page: films'); (await showFilms(d.p)).forEach((f, i) => L(`  #${i + 1} "${f.title}" times=${JSON.stringify(f.times)}\n      block: ${f.block}`));
-        L('sold-out mentions:', (d.text.match(/sold out/gi) || []).length);
-      }
-    } else L('No day link found.');
-
-    if (fut) {
-      const d = await site.load(fut.h, 'FUTURE DATES page');
-      if (d) {
-        H('[SUNS] future dates: text head'); L(clip(d.text, 6000));
-        H('[SUNS] future dates: date/time lines'); dateTimeLines(d.text, 120);
-        H('[SUNS] future dates: films'); (await showFilms(d.p)).slice(0, 40).forEach((f, i) => L(`  #${i + 1} "${f.title}" times=${JSON.stringify(f.times)}\n      block: ${f.block}`));
-        L('sold-out mentions:', (d.text.match(/sold out/gi) || []).length);
-        H('[SUNS] future dates: link dump'); dumpLinks(await links(d.p), 80);
-      }
+    for (const [u, lab] of [['https://sunscinema.com/2026-11-25', 'DAY page 2026-11-25 (2 days out)'], ['https://sunscinema.com/2026-11-29', 'DAY page 2026-11-29 (6 days out, past the 3 day links)'], ['https://sunscinema.com/2026-12-12', 'DAY page 2026-12-12 (19 days out)']]) {
+      const d = await site.load(u, lab);
+      if (d) { L('final URL:', d.p.url()); H(`[SUNS] ${lab}: text`); L(clip(d.text.replace(/^[\s\S]*?Future Dates/, ''), 1500)); await block(d.p, lab); }
     }
 
-    const filmLink = all.find(l => !/\/purchase\//.test(l.h) && /sunscinema\.com\/(movie|movies|film|films|event|events|show|shows)\/[^/]+/i.test(l.h));
-    if (filmLink) {
-      const d = await site.load(filmLink.h, `FILM page ("${filmLink.t}")`);
+    const cs = await site.load('https://sunscinema.com/upcoming-films-3/', 'COMING SOON page');
+    if (cs) {
+      H('[SUNS] coming soon: text'); L(clip(cs.text, 4000));
+      H('[SUNS] coming soon: date lines'); dateTimeLines(cs.text, 100);
+    }
+
+    for (const u of ['https://sunscinema.com/movies/edward-ii/', 'https://sunscinema.com/movies/swordsman/']) {
+      const d = await site.load(u, 'FILM page');
       if (d) {
-        H('[SUNS] film page: text head'); L(clip(d.text, 3500));
-        H('[SUNS] film page: date/time lines'); dateTimeLines(d.text, 60);
-        L('runtime matches:', JSON.stringify(d.text.match(/\b\d{2,3}\s*(min|mins|minutes)\b|\b\d\s*h(r|our)?s?\s*\d{1,2}\s*m/gi)));
-        L('format matches:', JSON.stringify([...new Set(d.text.match(/\b(35mm|70mm|16mm|DCP|digital|4K)\b/gi) || [])]));
-        L('price matches:', JSON.stringify([...new Set(d.text.match(/\$\s?\d+(\.\d\d)?/g) || [])]));
-        L('rating matches:', JSON.stringify([...new Set(d.text.match(/\b(Rated\s+)?(G|PG|PG-13|R|NC-17|NR|Not Rated|Unrated)\b(?=\s|,|$)/g) || [])].slice(0, 10)));
+        H('[SUNS] film page: text'); L(clip(d.text.replace(/^[\s\S]*?Watch trailer\n/, ''), 2000));
+        L('runtime matches:', JSON.stringify(d.text.match(/\b\d{2,3}\s*(min|mins|minutes)\b/gi)));
+        L('format matches:', JSON.stringify([...new Set(d.text.match(/\b(35mm|70mm|16mm|DCP|digital|4K|Blu-?ray)\b/gi) || [])]));
+        L('price in text:', JSON.stringify([...new Set(d.text.match(/\$\s?\d+(\.\d\d)?/g) || [])]));
+        L('rating matches:', JSON.stringify([...new Set(d.text.match(/\b(Rated\s+)?(PG-13|NC-17|PG|G|R|NR|Not Rated|Unrated)\b(?=[\s,.)]|$)/g) || [])].slice(0, 10)));
       }
-    } else L('No film page link found among home links.');
+    }
   } catch (e) {
     if (e instanceof Challenge) H(`[SUNS] BOT CHECK — stopped probing this site: ${e.message}`);
     else { H('[SUNS] ERROR'); L(e.stack || e.message); }
