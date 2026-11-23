@@ -26,6 +26,7 @@ Atom Tickets was the original source, but Cloudflare challenges it from GitHub's
 | `data/showtimes.json` | Per theater: `ok`, `dataDate`, `error`, `days` (`YYYY-MM-DD` → films `{title, rating, runtime, released, groups: [[label, "7:15 PM", …]]}`), and `soon` (first dates known without showtimes) |
 | `data/afi.json` | AFI Silver films, raw: `{count, errs, films}` |
 | `data/meta.json` | Run time, today's date (ET), per-source status, and a per-theater summary |
+| `data/rt.json` | Rotten Tomatoes scores, written by `rt.yml` (`scripts/rt.mjs`) daily at 12:07 UTC: `lists` (RT's in-theaters newest / popular / top box office and coming-soon lists: `{title, tm, pm, date, released, rerelease, url}`) and `pages` (single movie pages for current first-run titles the lists miss). The Claude publish task reads this instead of fetching RT itself |
 
 A theater is current only when `ok` is true and `dataDate` equals today's date in Eastern time. A theater whose source fails keeps its last good data with `ok: false`. Format labels are: `""`, IMAX, Dolby, Laser, Prime, XL, 4DX, 3D, Big Show, ScreenX, Open Caption, Sensory, 35mm, 70mm, 16mm and 4K.
 

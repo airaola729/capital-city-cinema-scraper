@@ -1,18 +1,26 @@
-// Diagnostic (branch only): how RT marks up scores on a movie page, and one browse tile.
-const UA = 'CapitalCityCinema/1.0 (+https://github.com/airaola729/capital-city-cinema-scraper)';
-const get = async p => (await fetch('https://www.rottentomatoes.com' + p, { headers: { 'user-agent': UA, accept: 'text/html' } })).text();
-for (const p of ['/m/i_play_rocky', '/m/elsinore']) {
-  const h = await get(p);
-  console.log('=====', p, h.length);
-  for (const re of [/<script[^>]*(?:scorecard|score)[^>]*>/gi, /(criticsScore|audienceScore|tomatometer|popcornmeter|criticsAll|audienceAll)[\s\S]{0,220}/gi]) {
-    let n = 0;
-    for (const m of h.matchAll(re)) { if (n++ > 10) break; console.log('  ', re.source.slice(0, 20), '::', m[0].replace(/\s+/g, ' ').slice(0, 260)); }
-  }
-  const i = h.indexOf('89%');
-  console.log('  around 89%:', i, i > 0 ? h.slice(i - 400, i + 100).replace(/\s+/g, ' ') : '');
+// Diagnostic: what happens on a Fever theater page after a date tile is clicked.
+import { chromium } from 'playwright';
+const browser = await chromium.launch({ headless: true });
+const ctx = await browser.newContext({ timezoneId: 'America/New_York', locale: 'en-US', viewport: { width: 1366, height: 900 } });
+const page = await ctx.newPage();
+const t0 = Date.now(); const ts = () => ((Date.now() - t0) / 1000).toFixed(2);
+page.on('request', r => { if (['xhr', 'fetch'].includes(r.resourceType())) console.log(ts(), 'REQ', r.method(), r.url().slice(0, 200)); });
+page.on('response', r => { if (['xhr', 'fetch'].includes(r.request().resourceType())) console.log(ts(), 'RES', r.status(), r.url().slice(0, 200)); });
+await page.goto('https://feverup.com/movies/en/united-states/movie-theaters/amc-hoffman-center-22', { waitUntil: 'domcontentloaded', timeout: 60000 });
+await page.waitForTimeout(4000);
+const state = () => page.evaluate(() => ({
+  active: document.querySelector('.date-tile--is-active time')?.getAttribute('datetime'),
+  cards: document.querySelectorAll('[data-testid="showtimes-card"]').length,
+  first: document.querySelector('[data-testid="showtimes-card"] .movie-info__title')?.textContent.trim(),
+  times: document.querySelectorAll('[data-testid="movie-showtimes-item"]').length,
+  loaders: document.querySelectorAll('[class*="skeleton"], [class*="loading"], [class*="spinner"], [aria-busy="true"]').length,
+  empty: (document.querySelector('.theater-body')?.textContent.match(/no (showtimes|movies)[^.]{0,60}/i) || [])[0] || null,
+  url: location.href,
+}));
+console.log(ts(), 'INITIAL', JSON.stringify(await state()));
+for (const dt of ['2026-11-23', '2026-11-24', '2026-11-28']) {
+  console.log(ts(), '--- click', dt);
+  await page.evaluate(dt => document.querySelector(`[data-carousel="date-list"] time[datetime="${dt}"]`)?.closest('button')?.click(), dt);
+  for (let i = 0; i < 24; i++) { await page.waitForTimeout(250); const s = await state(); if (i % 2 === 0 || i < 6) console.log(ts(), 'STATE', JSON.stringify(s)); }
 }
-const b = await get('/browse/movies_in_theaters/sort:popular');
-const i = b.indexOf('discovery-media-list-item-title');
-console.log('===== tile', b.slice(i - 1500, i + 700).replace(/\s+/g, ' '));
-const g = b.indexOf('God with Us');
-console.log('===== god with us tile', g, b.slice(g - 1500, g + 300).replace(/\s+/g, ' '));
+await browser.close();

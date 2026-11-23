@@ -86,12 +86,15 @@ function parseTiles(html) {
   for (let i = 0; i < idx.length; i++) {
     const [pos, url] = idx[i];
     const chunk = html.slice(pos, i + 1 < idx.length ? idx[i + 1][0] : pos + 6000);
-    const titleM = chunk.match(/data-qa="discovery-media-list-item-title"[^>]*>([\s\S]*?)<\/span>/i);
+    // Take only the text right after each tag (the title element also wraps the date and a Watchlist button).
+    const titleM = chunk.match(/data-qa="discovery-media-list-item-title"[^>]*>\s*([^<]*)/i);
     if (!titleM) continue;
-    const title = text(titleM[1]);
+    const dateM = chunk.match(/data-qa="discovery-media-list-item-start-date"[^>]*>\s*([^<]*)/i);
+    const dateText = dateM ? text(dateM[1]).replace(/\s*Watchlist\s*$/i, '') || null : null;
+    let title = text(titleM[1]);
+    if (dateText && title.endsWith(dateText)) title = title.slice(0, -dateText.length).trim();
+    title = title.replace(/\s*Watchlist\s*$/i, '').trim();
     if (!title) continue;
-    const dateM = chunk.match(/data-qa="discovery-media-list-item-start-date"[^>]*>([\s\S]*?)<\/span>/i);
-    const dateText = dateM ? text(dateM[1]) : null;
     let tm = null, pm = null;
     const a1 = chunk.match(/criticsscore="(\d*)"/i), a2 = chunk.match(/audiencescore="(\d*)"/i);
     if (a1) tm = pct(a1[1]);
@@ -113,8 +116,8 @@ function parseMoviePage(html, path) {
   if (sc) {
     try {
       const j = JSON.parse(sc[1]);
-      res.tm = pct(j?.criticsScore?.score);
-      res.pm = pct(j?.audienceScore?.score);
+      res.tm = pct(j?.criticsScore?.scorePercent ?? j?.criticsScore?.score);
+      res.pm = pct(j?.audienceScore?.scorePercent ?? j?.audienceScore?.score);
       res.title = j?.scoreboard?.title || null;
       const info = j?.scoreboard?.info || '';
       const y = String(info).match(/\b(19|20)\d{2}\b/);
@@ -133,6 +136,8 @@ function parseMoviePage(html, path) {
       }
     } catch (e) { /* ignore */ }
   }
+  if (res.tm == null) { const m = html.match(/slot="criticsScore"[^>]*>\s*(\d{1,3})%/); if (m) res.tm = +m[1]; }
+  if (res.pm == null) { const m = html.match(/slot="audienceScore"[^>]*>\s*(\d{1,3})%/); if (m) res.pm = +m[1]; }
   const rel = html.match(/Release Date \(Theaters\)[\s\S]{0,400}?([A-Z][a-z]{2} \d{1,2}, \d{4})/);
   if (rel) res.released = isoDate(rel[1]) || res.released;
   if (!res.title) res.title = text((html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i) || [])[1] || '') || null;
