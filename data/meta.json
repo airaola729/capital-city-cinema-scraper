@@ -1,25 +1,25 @@
 {
-  "runAt": "2026-11-22T18:33:29.804Z",
-  "today": "2026-11-22",
-  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45055717789",
+  "runAt": "2026-11-23T11:46:02.366Z",
+  "today": "2026-11-23",
+  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45167850962",
   "afiSpecials": {
     "ok": true,
-    "dataDate": "2026-11-22",
-    "films": 100,
+    "dataDate": "2026-11-23",
+    "films": 99,
     "error": null
   },
   "sources": {
     "alamo": {
       "ok": true,
-      "ms": 164,
+      "ms": 467,
       "summary": {
-        "alamo-dc": "10 films today, 40 days",
-        "alamo-cc": "9 films today, 40 days"
+        "alamo-dc": "8 films today, 39 days",
+        "alamo-cc": "9 films today, 39 days"
       }
     },
     "miracle": {
       "ok": true,
-      "ms": 4085,
+      "ms": 3749,
       "summary": {
         "events": 12,
         "days": 9,
@@ -28,93 +28,93 @@
     },
     "fever": {
       "ok": true,
-      "ms": 113869,
+      "ms": 117045,
       "summary": {
-        "hoffman": "24 films today, 15 dates read",
-        "tysons": "15 films today, 15 dates read",
-        "georgetown": "12 films today, 15 dates read"
+        "hoffman": "26 films today, 15 dates read",
+        "tysons": "16 films today, 15 dates read",
+        "georgetown": "13 films today, 15 dates read"
       }
     },
     "angelika": {
       "ok": true,
-      "ms": 3247,
+      "ms": 2536,
       "summary": {
-        "today": 3,
+        "today": 4,
         "days": 1,
-        "soon": 12
+        "soon": 11
       }
     },
     "afi": {
       "ok": true,
-      "ms": 25677,
+      "ms": 25237,
       "summary": {
-        "films": 100,
+        "films": 99,
         "errs": 0,
         "today": 10,
-        "days": 33
+        "days": 32
       }
     },
     "4eye": {
       "ok": true,
-      "ms": 5005,
+      "ms": 3228,
       "summary": {
-        "rows": 15,
-        "today": 2
+        "rows": 13,
+        "today": 1
       }
     }
   },
   "theaters": {
     "hoffman": {
       "ok": true,
-      "dataDate": "2026-11-22",
+      "dataDate": "2026-11-23",
       "source": "fever",
-      "filmsToday": 24,
+      "filmsToday": 26,
       "days": 15,
       "error": null
     },
     "tysons": {
       "ok": true,
-      "dataDate": "2026-11-22",
+      "dataDate": "2026-11-23",
       "source": "fever",
-      "filmsToday": 15,
+      "filmsToday": 16,
       "days": 15,
       "error": null
     },
     "georgetown": {
       "ok": true,
-      "dataDate": "2026-11-22",
+      "dataDate": "2026-11-23",
       "source": "fever",
-      "filmsToday": 12,
+      "filmsToday": 13,
       "days": 15,
       "error": null
     },
     "alamo-dc": {
       "ok": true,
-      "dataDate": "2026-11-22",
+      "dataDate": "2026-11-23",
       "source": "alamo",
-      "filmsToday": 10,
-      "days": 40,
+      "filmsToday": 8,
+      "days": 39,
       "error": null
     },
     "alamo-cc": {
       "ok": true,
-      "dataDate": "2026-11-22",
+      "dataDate": "2026-11-23",
       "source": "alamo",
       "filmsToday": 9,
-      "days": 40,
+      "days": 39,
       "error": null
     },
     "afi": {
       "ok": true,
-      "dataDate": "2026-11-22",
+      "dataDate": "2026-11-23",
       "source": "afi",
       "filmsToday": 10,
-      "days": 33,
+      "days": 32,
       "error": null
     },
     "miracle": {
       "ok": true,
-      "dataDate": "2026-11-22",
+      "dataDate": "2026-11-23",
       "source": "miracle",
       "filmsToday": 0,
       "days": 9,
@@ -122,18 +122,18 @@
     },
     "angelika": {
       "ok": true,
-      "dataDate": "2026-11-22",
+      "dataDate": "2026-11-23",
       "source": "angelika",
-      "filmsToday": 3,
+      "filmsToday": 4,
       "days": 1,
       "error": null
     },
     "4eye": {
       "ok": true,
-      "dataDate": "2026-11-22",
+      "dataDate": "2026-11-23",
       "source": "4eye",
-      "filmsToday": 2,
-      "days": 9,
+      "filmsToday": 1,
+      "days": 8,
       "error": null
     }
   }
