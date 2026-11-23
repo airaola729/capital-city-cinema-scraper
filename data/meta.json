@@ -1,22 +1,75 @@
 {
-  "runAt": "2026-11-23T17:11:36.052Z",
+  "runAt": "2026-11-23T22:14:38.555Z",
   "today": "2026-11-23",
-  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45224861025",
+  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45277707942",
   "afiSpecials": {
     "ok": true,
     "dataDate": "2026-11-23",
-    "films": 99,
+    "films": 100,
     "error": null
   },
   "sources": {
+    "alamo": {
+      "ok": true,
+      "ms": 495,
+      "summary": {
+        "alamo-dc": "8 films today, 39 days",
+        "alamo-cc": "8 films today, 39 days"
+      }
+    },
+    "miracle": {
+      "ok": true,
+      "ms": 3882,
+      "summary": {
+        "events": 12,
+        "days": 9,
+        "today": 0
+      }
+    },
     "suns": {
       "ok": true,
-      "ms": 5658,
+      "ms": 5605,
       "summary": {
         "events": 14,
         "filmPages": 2,
         "days": 7,
         "today": 2
+      }
+    },
+    "fever": {
+      "ok": true,
+      "ms": 112883,
+      "summary": {
+        "hoffman": "26 films today, 15 dates read",
+        "tysons": "16 films today, 15 dates read",
+        "georgetown": "13 films today, 15 dates read"
+      }
+    },
+    "angelika": {
+      "ok": true,
+      "ms": 3383,
+      "summary": {
+        "today": 3,
+        "days": 1,
+        "soon": 11
+      }
+    },
+    "afi": {
+      "ok": true,
+      "ms": 45388,
+      "summary": {
+        "films": 100,
+        "errs": 0,
+        "today": 7,
+        "days": 32
+      }
+    },
+    "4eye": {
+      "ok": true,
+      "ms": 3262,
+      "summary": {
+        "rows": 13,
+        "today": 1
       }
     }
   },
@@ -57,7 +110,7 @@
       "ok": true,
       "dataDate": "2026-11-23",
       "source": "alamo",
-      "filmsToday": 9,
+      "filmsToday": 8,
       "days": 39,
       "error": null
     },
@@ -65,7 +118,7 @@
       "ok": true,
       "dataDate": "2026-11-23",
       "source": "afi",
-      "filmsToday": 10,
+      "filmsToday": 7,
       "days": 32,
       "error": null
     },
@@ -81,7 +134,7 @@
       "ok": true,
       "dataDate": "2026-11-23",
       "source": "angelika",
-      "filmsToday": 4,
+      "filmsToday": 3,
       "days": 1,
       "error": null
     },
