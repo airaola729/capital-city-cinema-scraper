@@ -7,3 +7,4 @@ Columns: date (ET) · GitHub scrape (theaters current / 9, AFI specials) · fixe
 | Date | GitHub scrape | Fixes / reruns | Live site (prev. day) | Legacy test (prev. day) | Notes |
 |---|---|---|---|---|---|
 | 2026-11-23 | 9/9 current, AFI specials ok | none | publish SUCCEEDED 2026-11-22, listings 2026-11-22, public copy 2026-11-22, 39 films | legacy SUCCEEDED 2026-11-22, listings missing, 0/9 ok, 0 films | Scheduled 10:47 UTC run never fired; watchdog dispatched it manually at 11:44 UTC |
+| 2026-11-24 | 10/10 current (incl. Suns), AFI specials ok | rerun fixed afi | publish SUCCEEDED 2026-11-23, listings 2026-11-23, public copy 2026-11-23, 38 films | legacy SUCCEEDED 2026-11-23, listings missing, 0/9 ok, 0 films | Schedule didn't fire (dispatched 11:44 UTC); first AFI pass hit 42×504; screenings task on hold |
