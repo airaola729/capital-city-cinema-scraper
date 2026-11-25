@@ -1,7 +1,7 @@
 {
-  "runAt": "2026-11-25T11:44:23.328Z",
+  "runAt": "2026-11-25T20:12:46.429Z",
   "today": "2026-11-25",
-  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45607118027",
+  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45692675565",
   "afiSpecials": {
     "ok": true,
     "dataDate": "2026-11-25",
@@ -11,15 +11,15 @@
   "sources": {
     "alamo": {
       "ok": true,
-      "ms": 500,
+      "ms": 269,
       "summary": {
-        "alamo-dc": "10 films today, 38 days",
-        "alamo-cc": "10 films today, 38 days"
+        "alamo-dc": "9 films today, 38 days",
+        "alamo-cc": "9 films today, 38 days"
       }
     },
     "miracle": {
       "ok": true,
-      "ms": 3925,
+      "ms": 3882,
       "summary": {
         "events": 12,
         "days": 9,
@@ -28,7 +28,7 @@
     },
     "suns": {
       "ok": true,
-      "ms": 5379,
+      "ms": 5223,
       "summary": {
         "events": 10,
         "filmPages": 2,
@@ -36,9 +36,17 @@
         "today": 2
       }
     },
+    "cinemaclock": {
+      "ok": true,
+      "ms": 4295,
+      "summary": {
+        "si-lockheed": "0 features today, 4 days with features, 7 dates listed, 8 films on the page",
+        "si-airbus": "1 features today, 4 days with features, 7 dates listed, 7 films on the page"
+      }
+    },
     "fever": {
       "ok": true,
-      "ms": 117906,
+      "ms": 113443,
       "summary": {
         "hoffman": "24 films today, 15 dates read",
         "tysons": "15 films today, 15 dates read",
@@ -47,26 +55,26 @@
     },
     "angelika": {
       "ok": true,
-      "ms": 4162,
+      "ms": 3236,
       "summary": {
-        "today": 5,
+        "today": 3,
         "days": 1,
-        "soon": 9
+        "soon": 10
       }
     },
     "afi": {
       "ok": true,
-      "ms": 50287,
+      "ms": 44494,
       "summary": {
         "films": 101,
         "errs": 0,
-        "today": 9,
+        "today": 7,
         "days": 30
       }
     },
     "4eye": {
       "ok": true,
-      "ms": 4677,
+      "ms": 3512,
       "summary": {
         "rows": 12,
         "today": 0
@@ -102,7 +110,7 @@
       "ok": true,
       "dataDate": "2026-11-25",
       "source": "alamo",
-      "filmsToday": 10,
+      "filmsToday": 9,
       "days": 38,
       "error": null
     },
@@ -110,7 +118,7 @@
       "ok": true,
       "dataDate": "2026-11-25",
       "source": "alamo",
-      "filmsToday": 10,
+      "filmsToday": 9,
       "days": 38,
       "error": null
     },
@@ -118,7 +126,7 @@
       "ok": true,
       "dataDate": "2026-11-25",
       "source": "afi",
-      "filmsToday": 9,
+      "filmsToday": 7,
       "days": 30,
       "error": null
     },
@@ -134,7 +142,7 @@
       "ok": true,
       "dataDate": "2026-11-25",
       "source": "angelika",
-      "filmsToday": 5,
+      "filmsToday": 3,
       "days": 1,
       "error": null
     },
@@ -152,6 +160,22 @@
       "source": "suns",
       "filmsToday": 2,
       "days": 5,
+      "error": null
+    },
+    "si-lockheed": {
+      "ok": true,
+      "dataDate": "2026-11-25",
+      "source": "cinemaclock",
+      "filmsToday": 0,
+      "days": 4,
+      "error": null
+    },
+    "si-airbus": {
+      "ok": true,
+      "dataDate": "2026-11-25",
+      "source": "cinemaclock",
+      "filmsToday": 1,
+      "days": 4,
       "error": null
     }
   }
