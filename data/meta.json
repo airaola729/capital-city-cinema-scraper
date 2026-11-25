@@ -1,25 +1,25 @@
 {
-  "runAt": "2026-11-24T20:53:19.886Z",
-  "today": "2026-11-24",
-  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45485364892",
+  "runAt": "2026-11-25T11:44:23.328Z",
+  "today": "2026-11-25",
+  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45607118027",
   "afiSpecials": {
     "ok": true,
-    "dataDate": "2026-11-24",
-    "films": 103,
+    "dataDate": "2026-11-25",
+    "films": 101,
     "error": null
   },
   "sources": {
     "alamo": {
       "ok": true,
-      "ms": 216,
+      "ms": 500,
       "summary": {
-        "alamo-dc": "6 films today, 39 days",
-        "alamo-cc": "9 films today, 39 days"
+        "alamo-dc": "10 films today, 38 days",
+        "alamo-cc": "10 films today, 38 days"
       }
     },
     "miracle": {
       "ok": true,
-      "ms": 2663,
+      "ms": 3925,
       "summary": {
         "events": 12,
         "days": 9,
@@ -28,45 +28,45 @@
     },
     "suns": {
       "ok": true,
-      "ms": 5396,
+      "ms": 5379,
       "summary": {
-        "events": 12,
+        "events": 10,
         "filmPages": 2,
-        "days": 6,
+        "days": 5,
         "today": 2
       }
     },
     "fever": {
       "ok": true,
-      "ms": 111693,
+      "ms": 117906,
       "summary": {
         "hoffman": "24 films today, 15 dates read",
-        "tysons": "16 films today, 15 dates read",
+        "tysons": "15 films today, 15 dates read",
         "georgetown": "15 films today, 15 dates read"
       }
     },
     "angelika": {
       "ok": true,
-      "ms": 3262,
+      "ms": 4162,
       "summary": {
-        "today": 3,
+        "today": 5,
         "days": 1,
-        "soon": 11
+        "soon": 9
       }
     },
     "afi": {
       "ok": true,
-      "ms": 63001,
+      "ms": 50287,
       "summary": {
-        "films": 103,
+        "films": 101,
         "errs": 0,
-        "today": 8,
-        "days": 31
+        "today": 9,
+        "days": 30
       }
     },
     "4eye": {
       "ok": true,
-      "ms": 4732,
+      "ms": 4677,
       "summary": {
         "rows": 12,
         "today": 0
@@ -76,7 +76,7 @@
   "theaters": {
     "hoffman": {
       "ok": true,
-      "dataDate": "2026-11-24",
+      "dataDate": "2026-11-25",
       "source": "fever",
       "filmsToday": 24,
       "days": 15,
@@ -84,15 +84,15 @@
     },
     "tysons": {
       "ok": true,
-      "dataDate": "2026-11-24",
+      "dataDate": "2026-11-25",
       "source": "fever",
-      "filmsToday": 16,
+      "filmsToday": 15,
       "days": 15,
       "error": null
     },
     "georgetown": {
       "ok": true,
-      "dataDate": "2026-11-24",
+      "dataDate": "2026-11-25",
       "source": "fever",
       "filmsToday": 15,
       "days": 15,
@@ -100,31 +100,31 @@
     },
     "alamo-dc": {
       "ok": true,
-      "dataDate": "2026-11-24",
+      "dataDate": "2026-11-25",
       "source": "alamo",
-      "filmsToday": 6,
-      "days": 39,
+      "filmsToday": 10,
+      "days": 38,
       "error": null
     },
     "alamo-cc": {
       "ok": true,
-      "dataDate": "2026-11-24",
+      "dataDate": "2026-11-25",
       "source": "alamo",
-      "filmsToday": 9,
-      "days": 39,
+      "filmsToday": 10,
+      "days": 38,
       "error": null
     },
     "afi": {
       "ok": true,
-      "dataDate": "2026-11-24",
+      "dataDate": "2026-11-25",
       "source": "afi",
-      "filmsToday": 8,
-      "days": 31,
+      "filmsToday": 9,
+      "days": 30,
       "error": null
     },
     "miracle": {
       "ok": true,
-      "dataDate": "2026-11-24",
+      "dataDate": "2026-11-25",
       "source": "miracle",
       "filmsToday": 0,
       "days": 9,
@@ -132,15 +132,15 @@
     },
     "angelika": {
       "ok": true,
-      "dataDate": "2026-11-24",
+      "dataDate": "2026-11-25",
       "source": "angelika",
-      "filmsToday": 3,
+      "filmsToday": 5,
       "days": 1,
       "error": null
     },
     "4eye": {
       "ok": true,
-      "dataDate": "2026-11-24",
+      "dataDate": "2026-11-25",
       "source": "4eye",
       "filmsToday": 0,
       "days": 7,
@@ -148,10 +148,10 @@
     },
     "suns": {
       "ok": true,
-      "dataDate": "2026-11-24",
+      "dataDate": "2026-11-25",
       "source": "suns",
       "filmsToday": 2,
-      "days": 6,
+      "days": 5,
       "error": null
     }
   }
