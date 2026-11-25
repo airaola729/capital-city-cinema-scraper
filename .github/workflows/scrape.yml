@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       only:
-        description: 'Only these sources, comma-separated (blank = all): alamo, fever, angelika, miracle, afi, 4eye, suns, cinemaclock, smithsonian'
+        description: 'Only these sources, comma-separated (blank = all): alamo, fever, angelika, miracle, afi, 4eye, suns, cinemaclock, smithsonian, amc'
         required: false
         default: ''
 
@@ -36,6 +36,8 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Scrape
+        env:
+          AMC_API_KEY: ${{ secrets.AMC_API_KEY }}   # AMC catalog API key; only the amc source reads it
         run: node scrape.mjs
 
       - name: Commit data

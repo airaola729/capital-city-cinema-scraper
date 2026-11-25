@@ -22,7 +22,7 @@
 // a challenge is recorded as "blocked" and that source is skipped for the run. (For the Smithsonian only, the page is
 // left open up to 30 s first, because si.edu's check moves on by itself for ordinary visitors; nothing more.)
 //
-// Env: ONLY=comma list of sources (alamo,fever,angelika,miracle,afi,4eye,suns,cinemaclock,smithsonian), DATA_DIR (default ./data),
+// Env: ONLY=comma list of sources (alamo,fever,angelika,miracle,afi,4eye,suns,cinemaclock,smithsonian,amc), DATA_DIR (default ./data),
 //      *_URL overrides and CHROME_PATH for testing, PAUSE_MS (default 1500).
 
 import { chromium } from 'playwright';
@@ -57,7 +57,13 @@ const CC_SLUGS = { 'si-lockheed': 'lockheed-martin-imax-theater', 'si-airbus': '
 const SI_SERIES = /^(The Martian|2001: A Space Odyssey|The Right Stuff|Sully|Red Tails|The Great Waldo Pepper)$/i;
 const SI_SOURCES = ['cinemaclock', 'smithsonian'];
 const THEATERS = ['hoffman', 'tysons', 'georgetown', 'alamo-dc', 'alamo-cc', 'afi', 'miracle', 'angelika', '4eye', 'suns'];
-const OPT_IN = ['smithsonian'];   // sources that only run when named in ONLY
+const OPT_IN = ['smithsonian', 'amc'];   // sources that only run when named in ONLY
+// AMC's own catalog API (developers.amctheatres.com), approved for non-commercial use. The key comes from the
+// AMC_API_KEY repository secret and is only ever sent to AMC in the X-AMC-Vendor-Key header; it is never logged.
+// TEST MODE: the "amc" source writes data/amc-api.json and leaves showtimes.json (still fed by Fever) alone.
+const AMC_API = process.env.AMC_API_BASE || 'https://api.amctheatres.com';
+const AMC_THEATERS = { hoffman: 'amc-hoffman-center-22', tysons: 'amc-tysons-corner-16', georgetown: 'amc-georgetown-14' };
+const AMC_MAX_PAGES = 60;   // 100 showtimes a page
 const SOURCE_OF = { hoffman: 'fever', tysons: 'fever', georgetown: 'fever', 'alamo-dc': 'alamo', 'alamo-cc': 'alamo', afi: 'afi', miracle: 'miracle', angelika: 'angelika', '4eye': '4eye', suns: 'suns', 'si-lockheed': 'cinemaclock', 'si-airbus': 'cinemaclock' };
 
 const today = new Date().toLocaleDateString('en-CA', { timeZone: ET });
@@ -209,6 +215,53 @@ async function scrapeAlamo() {
     out[tid] = { days: buildDays(items), soon: [] };
   }
   return out;
+}
+
+// AMC catalog API: theatre lookup by slug, then every future showtime, 100 a page.
+async function amcGet(pathAndQuery) {
+  const key = process.env.AMC_API_KEY;
+  if (!key) throw new Error('AMC_API_KEY is not set (repository secret missing or not passed to this step)');
+  const r = await fetch(AMC_API + pathAndQuery, { headers: { 'X-AMC-Vendor-Key': key, accept: 'application/json', 'user-agent': UA }, signal: AbortSignal.timeout(45000) });
+  const body = await r.text();
+  if (r.status === 401 || r.status === 403) throw new Error(`AMC API refused the key (HTTP ${r.status}) for ${pathAndQuery}: ${body.slice(0, 200).replace(/\s+/g, ' ')}`);
+  if (!r.ok) throw new Error(`AMC API HTTP ${r.status} for ${pathAndQuery}: ${body.slice(0, 200).replace(/\s+/g, ' ')}`);
+  try { return JSON.parse(body); } catch { throw new Error(`AMC API returned non-JSON for ${pathAndQuery}: ${body.slice(0, 120).replace(/\s+/g, ' ')}`); }
+}
+// One label per showtime, from AMC's premiumFormat and attribute list. "Laser at AMC" is checked late because AMC
+// attaches it alongside other formats; "Dolby" means Dolby Cinema, not a Dolby sound attribute.
+function amcFormat(st) {
+  const a = [st.premiumFormat || '', ...(st.attributes || []).flatMap(x => [x.code || '', x.name || ''])].join(' | ');
+  if (/70\s?mm/i.test(a)) return '70mm'; if (/35\s?mm/i.test(a)) return '35mm';
+  if (/imax/i.test(a)) return 'IMAX'; if (/dolby\s*cinema/i.test(a)) return 'Dolby';
+  if (/\bprime\b|primeatamc/i.test(a)) return 'Prime'; if (/4dx/i.test(a)) return '4DX'; if (/screenx/i.test(a)) return 'ScreenX';
+  if (/\bxl\b|xlatamc/i.test(a)) return 'XL'; if (/\b3d\b|reald/i.test(a)) return '3D'; if (/laser/i.test(a)) return 'Laser';
+  if (/open\s*caption/i.test(a)) return 'Open Caption'; if (/sensory/i.test(a)) return 'Sensory';
+  return '';
+}
+async function scrapeAmcTheater(slug) {
+  const th = await amcGet(`/v2/theatres/${slug}`);
+  if (!th || !th.id) throw new Error(`no theatre found for slug ${slug}`);
+  const items = [], attrCounts = {}, notes = []; let total = null, skipped = 0, pages = 0;
+  for (let pn = 1; pn <= AMC_MAX_PAGES; pn++) {
+    const d = await amcGet(`/v2/theatres/${th.id}/showtimes?page-size=100&page-number=${pn}`);
+    const list = (d._embedded && d._embedded.showtimes) || [];
+    if (total == null && typeof d.count === 'number') total = d.count;
+    pages++;
+    for (const st of list) {
+      if (st.isCanceled || st.isPrivateRental) { skipped++; continue; }
+      const local = String(st.showDateTimeLocal || '');
+      if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(local) || !st.movieName) { skipped++; continue; }
+      for (const x of st.attributes || []) { const k = `${x.code || '?'} = ${x.name || ''}`; attrCounts[k] = (attrCounts[k] || 0) + 1; }
+      if (st.premiumFormat) { const k = `premiumFormat = ${st.premiumFormat}`; attrCounts[k] = (attrCounts[k] || 0) + 1; }
+      items.push({ date: local.slice(0, 10), title: smartTitle(st.movieName), rating: st.mpaaRating || null, runtime: runtimeFrom(st.runTime), label: amcFormat(st), time: from24(local.slice(11, 16)) });
+    }
+    if (list.length < 100 || (total != null && pn * 100 >= total)) break;
+    if (pn === AMC_MAX_PAGES) notes.push(`stopped at ${AMC_MAX_PAGES} pages`);
+    await sleep(300);
+  }
+  if (!items.length) throw new Error(`no showtimes returned for ${slug} (theatre ${th.id}, count ${total})`);
+  const days = buildDays(items);
+  return { theatreId: th.id, name: th.longName || th.name || slug, days, soon: [], notes, showtimes: items.length, skipped, pages, reported: total, attrCounts };
 }
 
 // Fever: AMC theater pages. Today is server-rendered; later dates load when a date tile is clicked.
@@ -631,6 +684,30 @@ async function main() {
     if (Object.values(r).every(v => v.error)) throw new Error(Object.entries(r).map(([k, v]) => `${k}: ${v.error}`).join('; '));
     return Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v.error || `${countFilms(v.days)} features today, ${Object.keys(v.days).length} days with features, ${v.datesListed} dates listed, ${v.films} films on the page`]));
   });
+
+  // AMC catalog API (test mode): its own results object and its own file, so Fever's data is untouched.
+  const amcResults = {};
+  await run('amc', async () => {
+    const sum = {};
+    for (const [tid, slug] of Object.entries(AMC_THEATERS)) {
+      try { const r = await scrapeAmcTheater(slug); amcResults[tid] = r; sum[tid] = `${r.name} (#${r.theatreId}): ${countFilms(r.days)} films today, ${Object.keys(r.days).length} days, ${r.showtimes} showtimes in ${r.pages} pages${r.skipped ? `, ${r.skipped} skipped` : ''}${r.notes.length ? ', notes: ' + r.notes.join('; ') : ''}`; }
+      catch (e) { const msg = String(e.message || e).slice(0, 400); amcResults[tid] = { error: msg }; sum[tid] = 'FAILED ' + msg; }
+      await sleep(500);
+    }
+    if (Object.values(amcResults).every(v => v.error)) throw new Error('all three AMC theaters failed: ' + JSON.stringify(sum));
+    return sum;
+  });
+  if (want('amc')) {
+    const amcTheaters = {};
+    for (const tid of Object.keys(AMC_THEATERS)) {
+      const r = amcResults[tid];
+      amcTheaters[tid] = !r || r.error ? { source: 'amc', ok: false, dataDate: null, error: (r && r.error) || (status.amc && status.amc.error) || 'not run', days: {}, soon: [] }
+        : { source: 'amc', ok: true, dataDate: today, fetchedAt: runAt, error: null, theatreId: r.theatreId, name: r.name, showtimes: r.showtimes, skipped: r.skipped, reported: r.reported, attrCounts: r.attrCounts, days: r.days, soon: [] };
+    }
+    await writeFile(path.join(DATA_DIR, 'amc-api.json'), JSON.stringify({ today, updatedAt: runAt, status: status.amc || null, note: 'TEST: AMC catalog API output, same shape as showtimes.json theaters. Not read by the site.', theaters: amcTheaters }) + '\n');
+    log(`amc: ${Object.entries(amcTheaters).map(([k, v]) => `${k}:${v.ok ? v.days?.[today]?.length || 0 : 'X ' + v.error}`).join(' ')}`);
+    if (ONLY.length && ONLY.every(s => s === 'amc')) return;   // AMC-only run: leave the other files alone
+  }
 
   // Browser sources.
   let browser = null, ctx = null;
