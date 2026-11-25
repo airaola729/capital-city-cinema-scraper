@@ -9,11 +9,12 @@
 //   4eye                      4EYE Film Center's own site
 //   suns                      Suns Cinema's own site (schema.org data on its home, Coming Soon and film pages;
 //                             robots.txt disallows its /purchase/ ticket pages, which are never fetched)
-//   si-lockheed, si-airbus    Smithsonian Theaters' own pages (Lockheed Martin IMAX on the Mall, Airbus IMAX at
-//                             Udvar-Hazy); only feature films (75+ minutes) are kept, not the museum documentaries.
-//                             si.edu sends GitHub's servers a Cloudflare check, so this source is opt-in (ONLY=smithsonian)
-//                             and runs on a self-hosted runner at home (.github/workflows/smithsonian.yml). It writes
-//                             data/smithsonian.json and leaves showtimes.json and meta.json alone.
+//   si-lockheed, si-airbus    Smithsonian IMAX theaters (Lockheed Martin IMAX on the Mall, Airbus IMAX at Udvar-Hazy);
+//                             only feature films are kept (75+ minutes, not documentaries), not the museum documentaries.
+//                             Daily source "cinemaclock": CinemaClock's public theater pages (plain HTTP, about a week
+//                             ahead). si.edu itself sends GitHub's servers a Cloudflare check, so the si.edu reader
+//                             ("smithsonian", ~15 days ahead) is opt-in (ONLY=smithsonian) for a home runner; Abel's Chrome
+//                             can also read si.edu (scripts/smithsonian-browser.js). Both write data/smithsonian.json.
 //
 // Output: data/showtimes.json (normalized per theater, per day), data/afi.json, data/meta.json.
 // A theater whose source fails keeps its previous entry with ok:false; a theater is current only
@@ -21,7 +22,7 @@
 // a challenge is recorded as "blocked" and that source is skipped for the run. (For the Smithsonian only, the page is
 // left open up to 30 s first, because si.edu's check moves on by itself for ordinary visitors; nothing more.)
 //
-// Env: ONLY=comma list of sources (alamo,fever,angelika,miracle,afi,4eye,suns,smithsonian), DATA_DIR (default ./data),
+// Env: ONLY=comma list of sources (alamo,fever,angelika,miracle,afi,4eye,suns,cinemaclock,smithsonian), DATA_DIR (default ./data),
 //      *_URL overrides and CHROME_PATH for testing, PAUSE_MS (default 1500).
 
 import { chromium } from 'playwright';
@@ -44,15 +45,20 @@ const URLS = {
   afi: process.env.AFI_URL || 'https://silver.afi.com/now-playing/',
   foureye: process.env.FOUREYE_URL || 'https://4eyefilmcenter.org/now-playing/',
   smithsonian: process.env.SI_URL || 'https://www.si.edu/theaters/lockheedmartin',
+  cinemaclock: process.env.CC_BASE || 'https://www.cinemaclock.com/movie-theaters/',
 };
 const ALAMO_CINEMAS = { '1101': 'alamo-dc', '1102': 'alamo-cc' };
 const FEVER_THEATERS = { hoffman: 'amc-hoffman-center-22', tysons: 'amc-tysons-corner-16', georgetown: 'amc-georgetown-14' };
 const SI_TERMS = { 'si-lockheed': 52, 'si-airbus': 53 };   // si.edu taxonomy terms of the two IMAX theaters
 const SI_DAYS = 15;                                          // the Smithsonian posts showtimes about two weeks ahead
 const SI_MIN_RUNTIME = 75;                                   // museum documentaries run 25-50 minutes; features 90+
+const CC_SLUGS = { 'si-lockheed': 'lockheed-martin-imax-theater', 'si-airbus': 'airbus-imax-theater' };   // CinemaClock pages
+// NASM 50th Anniversary Film Series titles seen so far (not IMAX presentations, so no IMAX label).
+const SI_SERIES = /^(The Martian|2001: A Space Odyssey|The Right Stuff|Sully|Red Tails|The Great Waldo Pepper)$/i;
+const SI_SOURCES = ['cinemaclock', 'smithsonian'];
 const THEATERS = ['hoffman', 'tysons', 'georgetown', 'alamo-dc', 'alamo-cc', 'afi', 'miracle', 'angelika', '4eye', 'suns'];
 const OPT_IN = ['smithsonian'];   // sources that only run when named in ONLY
-const SOURCE_OF = { hoffman: 'fever', tysons: 'fever', georgetown: 'fever', 'alamo-dc': 'alamo', 'alamo-cc': 'alamo', afi: 'afi', miracle: 'miracle', angelika: 'angelika', '4eye': '4eye', suns: 'suns', 'si-lockheed': 'smithsonian', 'si-airbus': 'smithsonian' };
+const SOURCE_OF = { hoffman: 'fever', tysons: 'fever', georgetown: 'fever', 'alamo-dc': 'alamo', 'alamo-cc': 'alamo', afi: 'afi', miracle: 'miracle', angelika: 'angelika', '4eye': '4eye', suns: 'suns', 'si-lockheed': 'cinemaclock', 'si-airbus': 'cinemaclock' };
 
 const today = new Date().toLocaleDateString('en-CA', { timeZone: ET });
 const addDays = (d, n) => new Date(Date.parse(d + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
@@ -370,6 +376,72 @@ async function scrapeMiracle() {
   return { days: buildDays(items), soon: [], events: items.length };
 }
 
+// Smithsonian IMAX theaters via CinemaClock's public theater pages (plain HTTP, no browser). si.edu itself sends
+// GitHub's servers a Cloudflare check, so this is the daily source; it carries the same showtimes about a week ahead.
+// Markup: one div.showtimeblock per film with h3.movietitle, p.moviegenre ("2h38m", <span class='rtUS'>PG-13</span>,
+// class gendoc on documentaries) and per-day <u>Fri <span class="timesdate">Nov 27</span></u><i>… data-time="1815"…</i>.
+// The list ends with the date the page is for ("Wednesday November 25 th"), which must be today.
+// Only the theater pages are fetched; robots.txt disallows /aw/, which is never requested.
+const CC_MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+function ccDate(mon, day) {
+  const mi = CC_MONTHS.indexOf(mon.slice(0, 3).toLowerCase()); if (mi < 0) return null;
+  let y = +today.slice(0, 4);
+  const mk = yy => `${yy}-${String(mi + 1).padStart(2, '0')}-${String(+day).padStart(2, '0')}`;
+  if (mk(y) < addDays(today, -60)) y++;   // a January date seen in December
+  return mk(y);
+}
+function parseCinemaClock(html, slug) {
+  if (!/class="showtimeblock|class='showtimeblock/.test(html) && !/subject to change/i.test(html)) throw new Error('showtime list not found on the page');
+  const pageDay = html.replace(/<[^>]+>/g, ' ').match(/(?:Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})\s*(?:st|nd|rd|th)?\s+\*?\s*Movie showtimes are subject to change/i);
+  if (!pageDay) throw new Error('could not tell which date the page is for');
+  const pd = ccDate(pageDay[1], pageDay[2]);
+  if (pd !== today) throw new Error(`page is for ${pd}, not today (${today})`);
+  const blocks = html.split(/<div id="moviecin[^"]*" class="showtimeblock/).slice(1);
+  const films = [];
+  for (const b of blocks) {
+    const title = smartTitle(unescape((b.match(/<h3 class='movietitle[^']*'[^>]*>\s*<a[^>]*>([\s\S]*?)<\/a>/) || [])[1] || '').replace(/<[^>]+>/g, '').trim());
+    if (!title) continue;
+    const genre = (b.match(/<p class='moviegenre'>([\s\S]*?)<\/p>/) || [])[1] || '';
+    const rating = normRating((genre.match(/<span class='rtUS'>([^<]+)<\/span>/) || [])[1]);
+    const g = genre.replace(/<span class='rt[A-Z]{2}'>[^<]*<\/span>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
+    const rm = g.match(/\b(\d+)h(?:(\d+)m)?\b|\b(\d+)m\b/);
+    const mins = !rm ? null : rm[1] ? +rm[1] * 60 + (+rm[2] || 0) : +rm[3];
+    const year = +(g.match(/\b(19\d\d|20\d\d)\b/) || [])[1] || null;
+    const doc = /class='movieblock[^']*\bgendoc\b/.test(b);
+    const cinema = (b.match(/class="cinemaname[^"]*"><a[^>]*href="([^"]+)"/) || [])[1] || '';
+    if (cinema && !cinema.includes(slug)) continue;
+    const shows = [];
+    for (const m of b.matchAll(/<u>[^<]*<span class="timesdate">([A-Za-z]{3,9})\s+(\d{1,2})<\/span><\/u>\s*<i>([\s\S]*?)<\/i>/g)) {
+      const date = ccDate(m[1], m[2]); if (!date) continue;
+      for (const t of m[3].matchAll(/data-time="(\d{3,4})"/g)) { const hhmm = t[1].padStart(4, '0'); shows.push({ date, time: from24(`${hhmm.slice(0, 2)}:${hhmm.slice(2)}`) }); }
+    }
+    films.push({ title, rating, mins, year, doc, shows });
+  }
+  return films;
+}
+async function scrapeSmithsonianCC() {
+  const out = {};
+  for (const [tid, slug] of Object.entries(CC_SLUGS)) {
+    try {
+      const films = parseCinemaClock(await getText(URLS.cinemaclock + slug), slug);
+      if (!films.length) throw new Error('no films parsed from the page');
+      const items = [];
+      for (const f of films) {
+        // Feature films only, as with si.edu: museum documentaries are left out (si.edu lists them under 75 minutes).
+        if (f.doc || !(f.mins >= SI_MIN_RUNTIME) || !f.shows.length) continue;
+        // NASM 50th Anniversary Film Series screenings are not IMAX presentations: an older film shown once or twice.
+        const series = SI_SERIES.test(f.title) || (f.year && f.year <= +today.slice(0, 4) - 3 && f.shows.length <= 2);
+        for (const s of f.shows) items.push({ date: s.date, title: f.title, rating: f.rating, runtime: runtimeFrom(f.mins), label: series ? '' : 'IMAX', time: s.time });
+      }
+      const days = buildDays(items);
+      const allDates = new Set(films.flatMap(f => f.shows.map(s => s.date)));
+      out[tid] = { days, soon: [], films: films.length, datesListed: allDates.size };
+    } catch (e) { out[tid] = { error: String(e.message || e).slice(0, 300), blocked: e instanceof BlockedError }; }
+    await sleep(PAUSE_MS);
+  }
+  return out;
+}
+
 // AFI Silver and 4EYE: original in-page scripts from the old task prompt.
 async function FOUREYE({ timeoutMs }) {
   const ctl = new AbortController(); setTimeout(() => ctl.abort(), timeoutMs);
@@ -523,6 +595,7 @@ async function readJSON(p) { try { return JSON.parse(await readFile(p, 'utf8'));
 
 async function main() {
   const runAt = new Date().toISOString();
+  let siForMeta = null;
   log(`run ${runAt}, today (ET) ${today}${ONLY.length ? ', only ' + ONLY.join(',') : ''}`);
   await mkdir(DATA_DIR, { recursive: true });
   const results = {}; // theaterId -> {days, soon, notes} | {error, blocked}
@@ -537,7 +610,7 @@ async function main() {
       const msg = String((e && e.message) || e).slice(0, 500);
       status[src] = { ok: false, error: msg, blocked: e instanceof BlockedError, ms: Date.now() - t0 };
       log(`[${src}] FAILED: ${msg}`); console.log(`::warning title=${src} failed::${msg.replace(/\r?\n/g, ' ')}`);
-      for (const [tid, s] of Object.entries(SOURCE_OF)) if (s === src && !results[tid]) results[tid] = { error: msg, blocked: e instanceof BlockedError };
+      for (const [tid, s] of Object.entries(SOURCE_OF)) if ((s === src || (src === 'smithsonian' && tid in SI_TERMS)) && !results[tid]) results[tid] = { error: msg, blocked: e instanceof BlockedError };
     }
   };
 
@@ -545,6 +618,12 @@ async function main() {
   await run('alamo', async () => { const r = await scrapeAlamo(); Object.assign(results, r); return Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v.error || `${countFilms(v.days)} films today, ${Object.keys(v.days).length} days`])); });
   await run('miracle', async () => { const r = await scrapeMiracle(); results.miracle = r; return { events: r.events, days: Object.keys(r.days).length, today: countFilms(r.days) }; });
   await run('suns', async () => { const r = await scrapeSuns(); results.suns = r; return { events: r.events, filmPages: r.filmPages, days: Object.keys(r.days).length, today: countFilms(r.days) }; });
+  await run('cinemaclock', async () => {
+    const r = await scrapeSmithsonianCC();
+    Object.assign(results, r);
+    if (Object.values(r).every(v => v.error)) throw new Error(Object.entries(r).map(([k, v]) => `${k}: ${v.error}`).join('; '));
+    return Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v.error || `${countFilms(v.days)} features today, ${Object.keys(v.days).length} days with features, ${v.datesListed} dates listed, ${v.films} films on the page`]));
+  });
 
   // Browser sources.
   let browser = null, ctx = null;
@@ -588,25 +667,26 @@ async function main() {
       const raw = await evalWithTimeout(page, SMITHSONIAN, { terms: SI_TERMS, start: today, days: SI_DAYS, timeoutMs: 150000 }, 180000);
       if (!raw.pages) throw new Error('no showtime pages could be read' + (raw.errs.length ? ': ' + raw.errs.slice(0, 3).join('; ') : ''));
       const r = smithsonianTheaters(raw);
-      Object.assign(results, r);
+      for (const [k, v] of Object.entries(r)) if (!v.error || !results[k] || results[k].error) results[k] = { ...v, via: 'smithsonian' };
       return { pages: raw.pages, errs: raw.errs.length, ...Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v.error || `${countFilms(v.days)} features today, ${Object.keys(v.days).length} days with features, ${v.datesRead} dates read`])) };
     } finally { await page.close().catch(() => {}); }
   });
   if (browser) await browser.close().catch(() => {});
 
-  // Smithsonian theaters go to their own file (written by the home runner), merged like the others.
-  if (want('smithsonian')) {
+  // Smithsonian theaters go to their own file, merged like the others.
+  if (SI_SOURCES.some(want)) {
     const prevSi = (await readJSON(path.join(DATA_DIR, 'smithsonian.json'))) || { theaters: {} };
     const siTheaters = {};
     for (const tid of Object.keys(SI_TERMS)) {
       const r = results[tid], p = prevSi.theaters?.[tid] || {};
-      const base = { source: 'smithsonian' };
+      const base = { source: (r && r.via) || (want('cinemaclock') ? 'cinemaclock' : 'smithsonian') };
       if (!r || r.error) siTheaters[tid] = { ...base, ok: false, dataDate: p.dataDate || null, fetchedAt: p.fetchedAt || null, error: (r && r.error) || 'not run', blocked: !!(r && r.blocked), days: p.days || {}, soon: p.soon || [] };
       else siTheaters[tid] = { ...base, ok: true, dataDate: today, fetchedAt: runAt, error: null, days: r.days, soon: r.soon || [] };
     }
-    await writeFile(path.join(DATA_DIR, 'smithsonian.json'), JSON.stringify({ today, updatedAt: runAt, status: status.smithsonian || null, note: 'Same shape as showtimes.json theaters. Feature films only (75+ minutes).', theaters: siTheaters }) + '\n');
+    await writeFile(path.join(DATA_DIR, 'smithsonian.json'), JSON.stringify({ today, updatedAt: runAt, status: status.cinemaclock || status.smithsonian || null, via: SI_SOURCES.filter(want).join('+'), note: 'Same shape as showtimes.json theaters. Feature films only (75+ minutes, not documentaries).', theaters: siTheaters }) + '\n');
     log(`smithsonian: ${Object.entries(siTheaters).map(([k, v]) => `${k}:${v.ok ? v.days?.[today]?.length || 0 : 'X ' + v.error}`).join(' ')}`);
-    if (ONLY.length && ONLY.every(s => OPT_IN.includes(s))) return;   // home-runner run: leave the other files alone
+    if (ONLY.length && ONLY.every(s => SI_SOURCES.includes(s))) return;   // Smithsonian-only run: leave the other files alone
+    siForMeta = siTheaters;
   }
 
   // Merge with the previous file: failed or skipped theaters keep their last good data.
@@ -635,7 +715,7 @@ async function main() {
       : status.afi ? { ok: false, dataDate: prevMeta.afiSpecials?.dataDate || null, films: prevMeta.afiSpecials?.films || null, error: status.afi.error }
       : (prevMeta.afiSpecials || { ok: false, dataDate: null, error: 'not run' }),
     sources: Object.fromEntries(Object.entries(status)),
-    theaters: Object.fromEntries(Object.entries(theaters).map(([k, v]) => [k, { ok: v.ok, dataDate: v.dataDate, source: v.source, filmsToday: v.days?.[today]?.length || 0, days: Object.keys(v.days || {}).length, error: v.error || null }])),
+    theaters: Object.fromEntries(Object.entries({ ...theaters, ...(siForMeta || {}) }).map(([k, v]) => [k, { ok: v.ok, dataDate: v.dataDate, source: v.source, filmsToday: v.days?.[today]?.length || 0, days: Object.keys(v.days || {}).length, error: v.error || null }])),
   };
   await writeFile(path.join(DATA_DIR, 'meta.json'), JSON.stringify(meta, null, 2) + '\n');
 
