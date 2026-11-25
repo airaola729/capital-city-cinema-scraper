@@ -392,10 +392,17 @@ function ccDate(mon, day) {
 }
 function parseCinemaClock(html, slug) {
   if (!/class="showtimeblock|class='showtimeblock/.test(html) && !/subject to change/i.test(html)) throw new Error('showtime list not found on the page');
-  const pageDay = html.replace(/<[^>]+>/g, ' ').match(/(?:Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})\s*(?:st|nd|rd|th)?\s+\*?\s*Movie showtimes are subject to change/i);
-  if (!pageDay) throw new Error('could not tell which date the page is for');
-  const pd = ccDate(pageDay[1], pageDay[2]);
-  if (pd !== today) throw new Error(`page is for ${pd}, not today (${today})`);
+  // Which day is the page for? The date line just above "Movie showtimes are subject to change", and every "Today Nov 25"
+  // label on a film, must all be today.
+  const txt = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<!--[\s\S]*?-->/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
+  const endAt = txt.search(/Movie showtimes are subject to change/i);
+  const before = endAt > 0 ? txt.slice(Math.max(0, endAt - 800), endAt) : '';
+  const dm = [...before.matchAll(/(?:Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})\b/gi)].pop();
+  const dates = [...html.matchAll(/<u>\s*Today\s*<span class="timesdate">([A-Za-z]{3,9})\s+(\d{1,2})<\/span>/g)].map(m => ccDate(m[1], m[2]));
+  if (dm) dates.push(ccDate(dm[1], dm[2]));
+  if (!dates.length) throw new Error(`could not tell which date the page is for (text before the footer: "${before.slice(-160)}")`);
+  const wrong = dates.find(d => d !== today);
+  if (wrong) throw new Error(`page is for ${wrong}, not today (${today})`);
   const blocks = html.split(/<div id="moviecin[^"]*" class="showtimeblock/).slice(1);
   const films = [];
   for (const b of blocks) {
