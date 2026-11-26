@@ -1,25 +1,25 @@
 {
-  "runAt": "2026-11-26T11:45:18.506Z",
+  "runAt": "2026-11-26T19:50:43.369Z",
   "today": "2026-11-26",
-  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45813334951",
+  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45886601328",
   "afiSpecials": {
     "ok": true,
     "dataDate": "2026-11-26",
-    "films": 100,
+    "films": 97,
     "error": null
   },
   "sources": {
     "alamo": {
       "ok": true,
-      "ms": 202,
+      "ms": 528,
       "summary": {
-        "alamo-dc": "9 films today, 37 days",
-        "alamo-cc": "9 films today, 37 days"
+        "alamo-dc": "8 films today, 37 days",
+        "alamo-cc": "8 films today, 37 days"
       }
     },
     "miracle": {
       "ok": true,
-      "ms": 3795,
+      "ms": 2693,
       "summary": {
         "events": 12,
         "days": 9,
@@ -28,7 +28,7 @@
     },
     "suns": {
       "ok": true,
-      "ms": 2101,
+      "ms": 2270,
       "summary": {
         "events": 8,
         "filmPages": 0,
@@ -38,7 +38,7 @@
     },
     "cinemaclock": {
       "ok": true,
-      "ms": 4311,
+      "ms": 4698,
       "summary": {
         "si-lockheed": "0 features today, 4 days with features, 7 dates listed, 8 films on the page",
         "si-airbus": "0 features today, 3 days with features, 7 dates listed, 7 films on the page"
@@ -46,7 +46,7 @@
     },
     "fever": {
       "ok": true,
-      "ms": 111785,
+      "ms": 113591,
       "summary": {
         "hoffman": "23 films today, 15 dates read",
         "tysons": "15 films today, 15 dates read",
@@ -55,7 +55,7 @@
     },
     "angelika": {
       "ok": true,
-      "ms": 3067,
+      "ms": 3247,
       "summary": {
         "today": 4,
         "days": 1,
@@ -64,17 +64,17 @@
     },
     "afi": {
       "ok": true,
-      "ms": 53270,
+      "ms": 38289,
       "summary": {
-        "films": 100,
+        "films": 97,
         "errs": 0,
-        "today": 12,
+        "today": 7,
         "days": 29
       }
     },
     "4eye": {
       "ok": true,
-      "ms": 3543,
+      "ms": 4580,
       "summary": {
         "rows": 12,
         "today": 0
@@ -110,7 +110,7 @@
       "ok": true,
       "dataDate": "2026-11-26",
       "source": "alamo",
-      "filmsToday": 9,
+      "filmsToday": 8,
       "days": 37,
       "error": null
     },
@@ -118,7 +118,7 @@
       "ok": true,
       "dataDate": "2026-11-26",
       "source": "alamo",
-      "filmsToday": 9,
+      "filmsToday": 8,
       "days": 37,
       "error": null
     },
@@ -126,7 +126,7 @@
       "ok": true,
       "dataDate": "2026-11-26",
       "source": "afi",
-      "filmsToday": 12,
+      "filmsToday": 7,
       "days": 29,
       "error": null
     },
