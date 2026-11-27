@@ -1,21 +1,83 @@
 {
-  "runAt": "2026-11-27T13:25:58.832Z",
+  "runAt": "2026-11-27T19:39:39.474Z",
   "today": "2026-11-27",
-  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/46006974607",
+  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/46058203446",
   "afiSpecials": {
     "ok": true,
     "dataDate": "2026-11-27",
-    "films": 93,
+    "films": 92,
     "error": null
   },
   "sources": {
+    "alamo": {
+      "ok": true,
+      "ms": 472,
+      "summary": {
+        "alamo-dc": "7 films today, 36 days",
+        "alamo-cc": "8 films today, 36 days"
+      }
+    },
     "amc": {
       "ok": true,
-      "ms": 23611,
+      "ms": 36477,
       "summary": {
         "hoffman": "AMC Hoffman Center 22 (#337): 23 films today, 49 days, 1612 showtimes",
         "tysons": "AMC Tysons Corner 16 (#366): 15 films today, 43 days, 1638 showtimes",
         "georgetown": "AMC Georgetown 14 (#2654): 13 films today, 42 days, 1174 showtimes"
+      }
+    },
+    "miracle": {
+      "ok": true,
+      "ms": 4061,
+      "summary": {
+        "events": 12,
+        "days": 9,
+        "today": 0
+      }
+    },
+    "suns": {
+      "ok": true,
+      "ms": 6516,
+      "summary": {
+        "events": 8,
+        "filmPages": 2,
+        "days": 4,
+        "today": 2
+      }
+    },
+    "cinemaclock": {
+      "ok": true,
+      "ms": 4766,
+      "summary": {
+        "si-lockheed": "1 features today, 4 days with features, 7 dates listed, 8 films on the page",
+        "si-airbus": "1 features today, 3 days with features, 7 dates listed, 7 films on the page"
+      }
+    },
+    "angelika": {
+      "ok": true,
+      "ms": 2556,
+      "summary": {
+        "today": 4,
+        "days": 1,
+        "soon": 10
+      }
+    },
+    "afi": {
+      "ok": true,
+      "ms": 54009,
+      "summary": {
+        "films": 92,
+        "errs": 0,
+        "today": 7,
+        "days": 28
+      }
+    },
+    "4eye": {
+      "ok": true,
+      "ms": 4655,
+      "summary": {
+        "rows": 12,
+        "today": 3
       }
     }
   },
@@ -48,7 +110,7 @@
       "ok": true,
       "dataDate": "2026-11-27",
       "source": "alamo",
-      "filmsToday": 8,
+      "filmsToday": 7,
       "days": 36,
       "error": null
     },
@@ -56,7 +118,7 @@
       "ok": true,
       "dataDate": "2026-11-27",
       "source": "alamo",
-      "filmsToday": 9,
+      "filmsToday": 8,
       "days": 36,
       "error": null
     },
@@ -64,7 +126,7 @@
       "ok": true,
       "dataDate": "2026-11-27",
       "source": "afi",
-      "filmsToday": 12,
+      "filmsToday": 7,
       "days": 28,
       "error": null
     },
@@ -98,6 +160,22 @@
       "source": "suns",
       "filmsToday": 2,
       "days": 4,
+      "error": null
+    },
+    "si-lockheed": {
+      "ok": true,
+      "dataDate": "2026-11-27",
+      "source": "cinemaclock",
+      "filmsToday": 1,
+      "days": 4,
+      "error": null
+    },
+    "si-airbus": {
+      "ok": true,
+      "dataDate": "2026-11-27",
+      "source": "cinemaclock",
+      "filmsToday": 1,
+      "days": 3,
       "error": null
     }
   }
