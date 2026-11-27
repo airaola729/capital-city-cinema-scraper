@@ -9,7 +9,7 @@ Each theater has its own source, and every source is readable from GitHub's serv
 | Theater | Source |
 |---|---|
 | Alamo Drafthouse DC Bryant Street, Crystal City | Alamo's own schedule JSON (`dc-metro-area` market) |
-| AMC Hoffman Center 22, Tysons Corner 16, Georgetown 14 | Fever theater pages (amctheatres.com blocks automated access) |
+| AMC Hoffman Center 22, Tysons Corner 16, Georgetown 14 | AMC's own catalog API (`api.amctheatres.com`), with a key AMC issued for non-commercial listings. The key is the repository secret `AMC_API_KEY` and is never committed or logged. About six to eight weeks ahead. Titles are tidied ("Disney's Hexed" becomes "Hexed"; "…: Sensory Friendly Screening" becomes the Sensory label) |
 | Angelika Pop-Up at Union Market | Angelika's own page (the scraper keeps the schedule JSON the page loads) |
 | The Miracle Theatre | Its own site's event list |
 | AFI Silver | Its own site (also saved raw as `data/afi.json` for the specials) |
@@ -17,7 +17,7 @@ Each theater has its own source, and every source is readable from GitHub's serv
 | Suns Cinema | Its own site's schema.org data (home page for today, Coming Soon page for later dates, plus the pages of films showing today). No ratings or formats are published. Its `/purchase/` ticket pages are disallowed by robots.txt and never fetched. The Avalon Theatre was probed too but not added: its Visitor Agreement bars robots and republishing without written consent (`docs/probe-2026-11-23-avalon-suns.md` on branch `probe/2026-11-23-avalon-suns`) |
 | Smithsonian Lockheed Martin IMAX (National Air and Space Museum), Airbus IMAX (Udvar-Hazy Center) | CinemaClock's public theater pages (plain HTTP, about a week ahead), in the daily run; only feature films (75+ minutes) are kept; output is `data/smithsonian.json`. si.edu itself challenges GitHub's servers, so its reader (`ONLY=smithsonian`, `smithsonian.yml`, `scripts/smithsonian-browser.js`) is kept only for manual tests |
 
-Atom Tickets was the original source, but Cloudflare challenges it from GitHub's servers, so it was dropped (Nov 2026; the old code is in the git history).
+Atom Tickets was the original source, but Cloudflare challenges it from GitHub's servers, so it was dropped (Nov 2026; the old code is in the git history). The AMC theaters were then read from Fever's theater pages until AMC approved API access (27 Nov 2026); that code is in the git history too.
 
 ## Files
 
