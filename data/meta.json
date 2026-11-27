@@ -1,7 +1,7 @@
 {
-  "runAt": "2026-11-27T11:45:11.007Z",
+  "runAt": "2026-11-27T13:25:58.832Z",
   "today": "2026-11-27",
-  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/45992952537",
+  "runUrl": "https://github.com/airaola729/capital-city-cinema-scraper/actions/runs/46006974607",
   "afiSpecials": {
     "ok": true,
     "dataDate": "2026-11-27",
@@ -9,75 +9,13 @@
     "error": null
   },
   "sources": {
-    "alamo": {
+    "amc": {
       "ok": true,
-      "ms": 142,
+      "ms": 23611,
       "summary": {
-        "alamo-dc": "8 films today, 36 days",
-        "alamo-cc": "9 films today, 36 days"
-      }
-    },
-    "miracle": {
-      "ok": true,
-      "ms": 2634,
-      "summary": {
-        "events": 12,
-        "days": 9,
-        "today": 0
-      }
-    },
-    "suns": {
-      "ok": true,
-      "ms": 5105,
-      "summary": {
-        "events": 8,
-        "filmPages": 2,
-        "days": 4,
-        "today": 2
-      }
-    },
-    "cinemaclock": {
-      "ok": true,
-      "ms": 4293,
-      "summary": {
-        "si-lockheed": "1 features today, 4 days with features, 7 dates listed, 8 films on the page",
-        "si-airbus": "1 features today, 3 days with features, 7 dates listed, 7 films on the page"
-      }
-    },
-    "fever": {
-      "ok": true,
-      "ms": 111034,
-      "summary": {
-        "hoffman": "24 films today, 15 dates read",
-        "tysons": "15 films today, 15 dates read",
-        "georgetown": "14 films today, 15 dates read"
-      }
-    },
-    "angelika": {
-      "ok": true,
-      "ms": 3382,
-      "summary": {
-        "today": 4,
-        "days": 1,
-        "soon": 10
-      }
-    },
-    "afi": {
-      "ok": true,
-      "ms": 36394,
-      "summary": {
-        "films": 93,
-        "errs": 0,
-        "today": 12,
-        "days": 28
-      }
-    },
-    "4eye": {
-      "ok": true,
-      "ms": 5014,
-      "summary": {
-        "rows": 12,
-        "today": 3
+        "hoffman": "AMC Hoffman Center 22 (#337): 23 films today, 49 days, 1612 showtimes",
+        "tysons": "AMC Tysons Corner 16 (#366): 15 films today, 43 days, 1638 showtimes",
+        "georgetown": "AMC Georgetown 14 (#2654): 13 films today, 42 days, 1174 showtimes"
       }
     }
   },
@@ -85,25 +23,25 @@
     "hoffman": {
       "ok": true,
       "dataDate": "2026-11-27",
-      "source": "fever",
-      "filmsToday": 24,
-      "days": 15,
+      "source": "amc",
+      "filmsToday": 23,
+      "days": 49,
       "error": null
     },
     "tysons": {
       "ok": true,
       "dataDate": "2026-11-27",
-      "source": "fever",
+      "source": "amc",
       "filmsToday": 15,
-      "days": 15,
+      "days": 43,
       "error": null
     },
     "georgetown": {
       "ok": true,
       "dataDate": "2026-11-27",
-      "source": "fever",
-      "filmsToday": 14,
-      "days": 15,
+      "source": "amc",
+      "filmsToday": 13,
+      "days": 42,
       "error": null
     },
     "alamo-dc": {
@@ -160,22 +98,6 @@
       "source": "suns",
       "filmsToday": 2,
       "days": 4,
-      "error": null
-    },
-    "si-lockheed": {
-      "ok": true,
-      "dataDate": "2026-11-27",
-      "source": "cinemaclock",
-      "filmsToday": 1,
-      "days": 4,
-      "error": null
-    },
-    "si-airbus": {
-      "ok": true,
-      "dataDate": "2026-11-27",
-      "source": "cinemaclock",
-      "filmsToday": 1,
-      "days": 3,
       "error": null
     }
   }
