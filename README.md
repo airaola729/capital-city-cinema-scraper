@@ -15,7 +15,7 @@ Each theater has its own source, and every source is readable from GitHub's serv
 | AFI Silver | Its own site (also saved raw as `data/afi.json` for the specials) |
 | 4EYE Film Center | Its own site |
 | Suns Cinema | Its own site's schema.org data (home page for today, Coming Soon page for later dates, plus the pages of films showing today). No ratings or formats are published. Its `/purchase/` ticket pages are disallowed by robots.txt and never fetched. The Avalon Theatre was probed too but not added: its Visitor Agreement bars robots and republishing without written consent (`docs/probe-2026-11-23-avalon-suns.md` on branch `probe/2026-11-23-avalon-suns`) |
-| Smithsonian Lockheed Martin IMAX (National Air and Space Museum), Airbus IMAX (Udvar-Hazy Center) | Smithsonian Theaters' own daily pages; only feature films (75+ minutes) are kept. Runs on a self-hosted runner at home (`smithsonian.yml`), because si.edu challenges GitHub's servers; output is `data/smithsonian.json` |
+| Smithsonian Lockheed Martin IMAX (National Air and Space Museum), Airbus IMAX (Udvar-Hazy Center) | CinemaClock's public theater pages (plain HTTP, about a week ahead), in the daily run; only feature films (75+ minutes) are kept; output is `data/smithsonian.json`. si.edu itself challenges GitHub's servers, so its reader (`ONLY=smithsonian`, `smithsonian.yml`, `scripts/smithsonian-browser.js`) is kept only for manual tests |
 
 Atom Tickets was the original source, but Cloudflare challenges it from GitHub's servers, so it was dropped (Nov 2026; the old code is in the git history).
 
@@ -36,9 +36,8 @@ To run it by hand, use **Actions → Scrape showtimes → Run workflow**. You ca
 ## Monitoring
 
 - The workflow's last step (`scripts/check-fresh.mjs`) fails the run when any theater, or the AFI specials, isn't current for today. The data is still committed first, so the site keeps the last good data for a broken source.
-- A daily Claude watchdog task runs about an hour after the scrape (11:43 UTC), well before the 10:17 ET publish. It checks the run, re-runs a failed source once, and, if the source still fails, diagnoses it, tests a fix on a branch and merges it only if the test run validates. It also checks the previous day's publish and the live site, and reports problems to Abel. It never tries to get past a bot check.
-- `monitor/status-log.md` gets one line per day from the watchdog: the GitHub pipeline's result and the legacy PC-browser test's result, for comparing the two methods.
+- The daily Claude watchdog task (Nov 22-27, 2026) and the legacy PC-browser test were retired on Nov 27, 2026. `monitor/status-log.md` keeps the watchdog's daily log for that period.
 
 ## Archive
 
-`archive/pc-browser-task-prompt.md` is the original Claude scheduled-task prompt that scraped Atom Tickets, 4EYE and AFI through the browser on Abel's PC (in use until Nov 2026). `archive/github-task-prompt.md` is the current task prompt, which reads this repo's data. The Playwright port of the Atom scripts is in the git history before commit 610d49c.
+`archive/pc-browser-task-prompt.md` is the original Claude scheduled-task prompt that scraped Atom Tickets, 4EYE and AFI through the browser on Abel's PC (in use until Nov 2026). `archive/github-task-prompt.md` is an early version of the publish task's prompt (it now also reads `data/smithsonian.json`). The Playwright port of the Atom scripts is in the git history before commit 610d49c.
