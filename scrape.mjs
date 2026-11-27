@@ -242,12 +242,17 @@ async function scrapeAmcTheater(slug) {
   const th = await amcGet(`/v2/theatres/${slug}`);
   if (!th || !th.id) throw new Error(`no theatre found for slug ${slug}`);
   const items = [], attrCounts = {}, notes = []; let total = null, skipped = 0, pages = 0;
+  const ids = new Set(), diag = { all: [], byDate: {} }; let dupIds = 0;
+  const diagDates = process.env.AMC_DIAG ? [today, addDays(today, 1)] : [];
+  const compact = st => [st.id, st.movieName, String(st.showDateTimeLocal || '').slice(0, 16), st.auditorium, st.premiumFormat || '', (st.attributes || []).map(x => x.code).join(','), st.isSoldOut ? 'soldout' : st.isAlmostSoldOut ? 'almost' : '', st.isCanceled ? 'canceled' : '', st.isPrivateRental ? 'private' : ''];
   for (let pn = 1; pn <= AMC_MAX_PAGES; pn++) {
     const d = await amcGet(`/v2/theatres/${th.id}/showtimes?page-size=100&page-number=${pn}`);
     const list = (d._embedded && d._embedded.showtimes) || [];
     if (total == null && typeof d.count === 'number') total = d.count;
     pages++;
     for (const st of list) {
+      if (st.id != null) { if (ids.has(st.id)) { dupIds++; continue; } ids.add(st.id); }
+      if (diagDates.includes(String(st.showDateTimeLocal || '').slice(0, 10))) diag.all.push(compact(st));
       if (st.isCanceled || st.isPrivateRental) { skipped++; continue; }
       const local = String(st.showDateTimeLocal || '');
       if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(local) || !st.movieName) { skipped++; continue; }
@@ -259,9 +264,22 @@ async function scrapeAmcTheater(slug) {
     if (pn === AMC_MAX_PAGES) notes.push(`stopped at ${AMC_MAX_PAGES} pages`);
     await sleep(300);
   }
+  if (dupIds) notes.push(`${dupIds} repeated showtime ids across pages (dropped)`);
+  // Diagnostics (AMC_DIAG=1): the same two days from the by-date endpoint, to compare with the all-future list.
+  for (const dt of diagDates) {
+    const got = []; let err = null, fmt = dt;
+    for (const f of [dt, `${+dt.slice(5, 7)}-${+dt.slice(8, 10)}-${dt.slice(0, 4)}`]) {
+      try {
+        got.length = 0; fmt = f;
+        for (let pn = 1; pn <= 5; pn++) { const d = await amcGet(`/v2/theatres/${th.id}/showtimes/${f}?page-size=100&page-number=${pn}`); const l = (d._embedded && d._embedded.showtimes) || []; got.push(...l.map(compact)); if (l.length < 100) break; await sleep(300); }
+        err = null; break;
+      } catch (e) { err = String(e.message || e).slice(0, 200); }
+    }
+    diag.byDate[dt] = { format: fmt, error: err, showtimes: got };
+  }
   if (!items.length) throw new Error(`no showtimes returned for ${slug} (theatre ${th.id}, count ${total})`);
   const days = buildDays(items);
-  return { theatreId: th.id, name: th.longName || th.name || slug, days, soon: [], notes, showtimes: items.length, skipped, pages, reported: total, attrCounts };
+  return { theatreId: th.id, name: th.longName || th.name || slug, days, soon: [], notes, showtimes: items.length, skipped, pages, reported: total, uniqueIds: ids.size, dupIds, attrCounts, diag: diagDates.length ? diag : undefined };
 }
 
 // Fever: AMC theater pages. Today is server-rendered; later dates load when a date tile is clicked.
@@ -702,7 +720,8 @@ async function main() {
     for (const tid of Object.keys(AMC_THEATERS)) {
       const r = amcResults[tid];
       amcTheaters[tid] = !r || r.error ? { source: 'amc', ok: false, dataDate: null, error: (r && r.error) || (status.amc && status.amc.error) || 'not run', days: {}, soon: [] }
-        : { source: 'amc', ok: true, dataDate: today, fetchedAt: runAt, error: null, theatreId: r.theatreId, name: r.name, showtimes: r.showtimes, skipped: r.skipped, reported: r.reported, attrCounts: r.attrCounts, days: r.days, soon: [] };
+        : { source: 'amc', ok: true, dataDate: today, fetchedAt: runAt, error: null, theatreId: r.theatreId, name: r.name, showtimes: r.showtimes, skipped: r.skipped, reported: r.reported, uniqueIds: r.uniqueIds, dupIds: r.dupIds, attrCounts: r.attrCounts, days: r.days, soon: [] };
+      if (r && r.diag) amcTheaters[tid].diag = r.diag;
     }
     await writeFile(path.join(DATA_DIR, 'amc-api.json'), JSON.stringify({ today, updatedAt: runAt, status: status.amc || null, note: 'TEST: AMC catalog API output, same shape as showtimes.json theaters. Not read by the site.', theaters: amcTheaters }) + '\n');
     log(`amc: ${Object.entries(amcTheaters).map(([k, v]) => `${k}:${v.ok ? v.days?.[today]?.length || 0 : 'X ' + v.error}`).join(' ')}`);

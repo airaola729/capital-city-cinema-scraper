@@ -38,6 +38,7 @@ jobs:
       - name: Scrape
         env:
           AMC_API_KEY: ${{ secrets.AMC_API_KEY }}   # AMC catalog API key; only the amc source reads it
+          AMC_DIAG: ${{ inputs.only == 'amc' && '1' || '' }}   # test branch only: extra AMC diagnostics on a manual amc-only run
         run: node scrape.mjs
 
       - name: Commit data
