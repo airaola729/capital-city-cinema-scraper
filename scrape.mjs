@@ -2,7 +2,8 @@
 //
 // Sources, one per theater, all readable from GitHub's servers without bot checks:
 //   alamo-dc, alamo-cc        Alamo Drafthouse's own schedule JSON (dc-metro-area market)
-//   hoffman, tysons, georgetown   Fever theater pages (AMC's own site blocks automated access)
+//   hoffman, tysons, georgetown   AMC's own catalog API (api.amctheatres.com), used with AMC's approval for
+//                             non-commercial listings. The key is the AMC_API_KEY repository secret.
 //   angelika                  Angelika's own page; the schedule JSON its page loads is captured
 //   miracle                   The Miracle Theatre's own site (event list)
 //   afi                       AFI Silver's own site (also saved raw as data/afi.json for the specials)
@@ -22,7 +23,7 @@
 // a challenge is recorded as "blocked" and that source is skipped for the run. (For the Smithsonian only, the page is
 // left open up to 30 s first, because si.edu's check moves on by itself for ordinary visitors; nothing more.)
 //
-// Env: ONLY=comma list of sources (alamo,fever,angelika,miracle,afi,4eye,suns,cinemaclock,smithsonian), DATA_DIR (default ./data),
+// Env: ONLY=comma list of sources (alamo,amc,angelika,miracle,afi,4eye,suns,cinemaclock,smithsonian), DATA_DIR (default ./data),
 //      *_URL overrides and CHROME_PATH for testing, PAUSE_MS (default 1500).
 
 import { chromium } from 'playwright';
@@ -38,7 +39,7 @@ const KEEP_DAYS = 60;
 
 const URLS = {
   alamo: process.env.ALAMO_URL || 'https://drafthouse.com/s/mother/v2/schedule/market/dc-metro-area',
-  fever: process.env.FEVER_BASE || 'https://feverup.com/movies/en/united-states/movie-theaters/',
+  amc: process.env.AMC_API_BASE || 'https://api.amctheatres.com',
   angelika: process.env.ANGELIKA_URL || 'https://angelikafilmcenter.com/dc',
   miracle: process.env.MIRACLE_URL || 'https://themiracletheatre.com/event-category/in-theatre-movies/',
   suns: process.env.SUNS_URL || 'https://sunscinema.com/',
@@ -48,7 +49,8 @@ const URLS = {
   cinemaclock: process.env.CC_BASE || 'https://www.cinemaclock.com/movie-theaters/',
 };
 const ALAMO_CINEMAS = { '1101': 'alamo-dc', '1102': 'alamo-cc' };
-const FEVER_THEATERS = { hoffman: 'amc-hoffman-center-22', tysons: 'amc-tysons-corner-16', georgetown: 'amc-georgetown-14' };
+const AMC_THEATERS = { hoffman: 'amc-hoffman-center-22', tysons: 'amc-tysons-corner-16', georgetown: 'amc-georgetown-14' };   // AMC theatre slugs
+const AMC_MAX_PAGES = 60;   // 100 showtimes a page
 const SI_TERMS = { 'si-lockheed': 52, 'si-airbus': 53 };   // si.edu taxonomy terms of the two IMAX theaters
 const SI_DAYS = 15;                                          // the Smithsonian posts showtimes about two weeks ahead
 const SI_MIN_RUNTIME = 75;                                   // museum documentaries run 25-50 minutes; features 90+
@@ -58,7 +60,7 @@ const SI_SERIES = /^(The Martian|2001: A Space Odyssey|The Right Stuff|Sully|Red
 const SI_SOURCES = ['cinemaclock', 'smithsonian'];
 const THEATERS = ['hoffman', 'tysons', 'georgetown', 'alamo-dc', 'alamo-cc', 'afi', 'miracle', 'angelika', '4eye', 'suns'];
 const OPT_IN = ['smithsonian'];   // sources that only run when named in ONLY
-const SOURCE_OF = { hoffman: 'fever', tysons: 'fever', georgetown: 'fever', 'alamo-dc': 'alamo', 'alamo-cc': 'alamo', afi: 'afi', miracle: 'miracle', angelika: 'angelika', '4eye': '4eye', suns: 'suns', 'si-lockheed': 'cinemaclock', 'si-airbus': 'cinemaclock' };
+const SOURCE_OF = { hoffman: 'amc', tysons: 'amc', georgetown: 'amc', 'alamo-dc': 'alamo', 'alamo-cc': 'alamo', afi: 'afi', miracle: 'miracle', angelika: 'angelika', '4eye': '4eye', suns: 'suns', 'si-lockheed': 'cinemaclock', 'si-airbus': 'cinemaclock' };
 
 const today = new Date().toLocaleDateString('en-CA', { timeZone: ET });
 const addDays = (d, n) => new Date(Date.parse(d + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
@@ -211,61 +213,76 @@ async function scrapeAlamo() {
   return out;
 }
 
-// Fever: AMC theater pages. Today is server-rendered; later dates load when a date tile is clicked.
-function FEVER_PARSE() {
-  const out = [];
-  document.querySelectorAll('[data-testid="showtimes-card"]').forEach(card => {
-    const title = card.querySelector('.movie-info__title')?.textContent.replace(/\s+/g, ' ').trim();
-    if (!title) return;
-    const rating = card.querySelector('.movie-info__rating')?.textContent.trim() || null;
-    const runtime = card.querySelector('.movie-info__runtime')?.textContent.trim() || null;
-    const groups = [];
-    card.querySelectorAll('.showtimes-times').forEach(g => {
-      const fmt = (g.querySelector('.showtimes-times__title')?.textContent || g.querySelector('img.format-logo')?.getAttribute('alt') || '').replace(/\s+/g, ' ').trim();
-      const attrs = g.querySelector('.showtimes-times__attributes')?.textContent || '';
-      const times = [...g.querySelectorAll('[data-testid="movie-showtimes-item"]')].map(b => b.textContent.replace(/\s+/g, ' ').trim()).filter(Boolean);
-      if (times.length) groups.push({ fmt, attrs, times });
-    });
-    out.push({ title, rating, runtime, groups });
-  });
-  return out;
+// AMC catalog API: theatre lookup by slug, then every future showtime, 100 a page. The key is only ever sent to
+// AMC in the X-AMC-Vendor-Key header and is never logged.
+async function amcGet(pathAndQuery) {
+  const key = process.env.AMC_API_KEY;
+  if (!key) throw new Error('AMC_API_KEY is not set (repository secret missing or not passed to this step)');
+  const r = await fetch(URLS.amc + pathAndQuery, { headers: { 'X-AMC-Vendor-Key': key, accept: 'application/json', 'user-agent': UA }, signal: AbortSignal.timeout(45000) });
+  const body = await r.text();
+  if (r.status === 401 || r.status === 403) throw new Error(`AMC API refused the key (HTTP ${r.status}) for ${pathAndQuery}: ${body.slice(0, 200).replace(/\s+/g, ' ')}`);
+  if (!r.ok) throw new Error(`AMC API HTTP ${r.status} for ${pathAndQuery}: ${body.slice(0, 200).replace(/\s+/g, ' ')}`);
+  try { return JSON.parse(body); } catch { throw new Error(`AMC API returned non-JSON for ${pathAndQuery}: ${body.slice(0, 120).replace(/\s+/g, ' ')}`); }
 }
-async function scrapeFeverTheater(ctx, slug) {
-  const page = await openPage(ctx, URLS.fever + slug);
-  try {
-    await page.waitForSelector('[data-testid="showtimes-card"]', { timeout: 20000 }).catch(() => {});
-    await page.waitForFunction(() => !document.querySelector('[class*="skeleton"], [class*="loading"], [class*="spinner"], [aria-busy="true"]'), null, { timeout: 10000, polling: 200 }).catch(() => {});
-    const dates =await page.$$eval('[data-carousel="date-list"] time[datetime]', ts => [...new Set(ts.map(t => t.getAttribute('datetime')))]).catch(() => []);
-    const active = await page.$eval('.date-tile--is-active time[datetime]', t => t.getAttribute('datetime')).catch(() => null) || today;
-    const items = [], notes = [];
-    const take = (dt, films) => { for (const f of films) for (const g of f.groups) for (const t of g.times) items.push({ date: dt, title: f.title, rating: f.rating, runtime: runtimeFrom(f.runtime), label: mapFormat(g.fmt, g.attrs), time: t }); };
-    const first = await page.evaluate(FEVER_PARSE);
-    if (active !== today) notes.push(`page opened on ${active}, not today`);
-    take(active, first);
-    // After a click the page clears the cards, shows loading placeholders, requests
-    // .../movie_sessions_for_date/<date>/ and renders the cards when it answers.
-    const LOADERS = '[class*="skeleton"], [class*="loading"], [class*="spinner"], [aria-busy="true"]';
-    for (const dt of dates.filter(x => x > active)) {
-      await sleep(PAUSE_MS);
-      const respP = page.waitForResponse(r => r.url().includes(`/movie_sessions_for_date/${dt}/`), { timeout: 20000 }).catch(() => null);
-      const clicked = await page.evaluate(dt => { const t = document.querySelector(`[data-carousel="date-list"] time[datetime="${dt}"]`); const b = t && t.closest('button'); if (!b) return false; b.click(); return true; }, dt);
-      if (!clicked) { notes.push(`no tile for ${dt}`); continue; }
-      const resp = await respP;
-      if (!resp) { notes.push(`no schedule response for ${dt}`); break; }
-      if (resp.status() !== 200) {
-        const body = await resp.text().catch(() => '');
-        const ch = challengeIn(resp.status(), (body.match(/<title[^>]*>([^<]*)/i) || [])[1], body);
-        if (ch) throw new BlockedError(ch + ' on a date request');
-        notes.push(`HTTP ${resp.status()} for ${dt}`); continue;
-      }
-      const ready = await page.waitForFunction(({ dt, L }) => document.querySelector('.date-tile--is-active time')?.getAttribute('datetime') === dt && !document.querySelector(L), { dt, L: LOADERS }, { timeout: 10000, polling: 200 }).then(() => true, () => false);
-      if (!ready) { notes.push(`date ${dt} did not finish rendering`); continue; }
-      await page.waitForTimeout(300);
-      take(dt, await page.evaluate(FEVER_PARSE));
+// AMC puts studio branding, program codes and screening types in the movie name. Strip the ones that would stop a
+// film matching the same film elsewhere: "Disney's Hexed" -> "Hexed", "Love Actually (HFS26)" -> "Love Actually",
+// "Ebenezer: Sensory Friendly Screening" -> "Ebenezer" (shown with the Sensory label), "MET Opera: X" -> "The
+// Metropolitan Opera: X". Event names ("... Early Access Event", "... Fan Event", "... Insider Screenings") are kept.
+function amcTitle(name) {
+  let t = smartTitle(name), sensory = false;
+  const cut = t.replace(/\s*[:\-–]\s*Sensory Friendly(?: Screening| Film)?\s*$/i, '');
+  if (cut !== t && cut) { t = cut; sensory = true; }
+  t = t.replace(/^Disney(?:\s*(?:and|&|\+|·)\s*Pixar)?['’]s\s+(?=\S)/i, '');
+  t = t.replace(/\s*\((?!\d+\s?(?:mm|MM|k|K|d|D)\))(?=[A-Z0-9]*\d)(?=[A-Z0-9]*[A-Z])[A-Z0-9]{3,8}\)\s*$/, '');
+  t = t.replace(/^MET Opera:\s*/i, 'The Metropolitan Opera: ');
+  return { title: t.trim(), sensory };
+}
+function amcRating(r) {
+  const k = String(r || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return { G: 'G', PG: 'PG', PG13: 'PG-13', R: 'R', NC17: 'NC-17', NR: 'NR', UR: 'NR', NOTRATED: 'NR', UNRATED: 'NR' }[k] || null;
+}
+// One label per showtime, from AMC's premiumFormat and attribute list. "Laser at AMC" is checked late because AMC
+// attaches it alongside other formats; "Dolby" means Dolby Cinema, not a Dolby sound attribute. A sensory-friendly
+// screening is labeled Sensory unless it is in a premium format.
+function amcFormat(st, sensory) {
+  const a = [st.premiumFormat || '', ...(st.attributes || []).flatMap(x => [x.code || '', x.name || ''])].join(' | ');
+  if (/70\s?mm/i.test(a)) return '70mm'; if (/35\s?mm/i.test(a)) return '35mm';
+  if (/imax/i.test(a)) return 'IMAX'; if (/dolby\s*cinema/i.test(a)) return 'Dolby';
+  if (/\bprime\b|primeatamc/i.test(a)) return 'Prime'; if (/4dx/i.test(a)) return '4DX'; if (/screenx/i.test(a)) return 'ScreenX';
+  if (/\bxl\b|xlatamc/i.test(a)) return 'XL'; if (/\b3d\b|reald/i.test(a)) return '3D';
+  if (sensory || /sensory/i.test(a)) return 'Sensory';
+  if (/laser/i.test(a)) return 'Laser';
+  if (/open\s*caption/i.test(a)) return 'Open Caption';
+  return '';
+}
+async function scrapeAmcTheater(slug) {
+  const th = await amcGet(`/v2/theatres/${slug}`);
+  if (!th || !th.id) throw new Error(`no theatre found for slug ${slug}`);
+  const items = [], notes = [], ids = new Set(); let total = null, skipped = 0, pages = 0, dupIds = 0;
+  for (let pn = 1; pn <= AMC_MAX_PAGES; pn++) {
+    const d = await amcGet(`/v2/theatres/${th.id}/showtimes?page-size=100&page-number=${pn}`);
+    const list = (d._embedded && d._embedded.showtimes) || [];
+    if (total == null && typeof d.count === 'number') total = d.count;
+    pages++;
+    for (const st of list) {
+      if (st.id != null) { if (ids.has(st.id)) { dupIds++; continue; } ids.add(st.id); }
+      if (st.isCanceled || st.isPrivateRental) { skipped++; continue; }
+      const local = String(st.showDateTimeLocal || '');
+      if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(local) || !st.movieName) { skipped++; continue; }
+      const { title, sensory } = amcTitle(st.movieName);
+      if (!title) { skipped++; continue; }
+      items.push({ date: local.slice(0, 10), title, rating: amcRating(st.mpaaRating), runtime: runtimeFrom(st.runTime), label: amcFormat(st, sensory), time: from24(local.slice(11, 16)) });
     }
-    if (!first.length) throw new Error('no films parsed for today' + (notes.length ? ' (' + notes.join('; ') + ')' : ''));
-    return { days: buildDays(items), soon: [], notes, datesRead: new Set(items.map(i => i.date)).size };
-  } finally { await page.close().catch(() => {}); }
+    if (list.length < 100 || (total != null && pn * 100 >= total)) break;
+    if (pn === AMC_MAX_PAGES) notes.push(`stopped at ${AMC_MAX_PAGES} pages`);
+    await sleep(300);
+  }
+  if (dupIds) notes.push(`${dupIds} repeated showtime ids across pages (dropped)`);
+  if (total != null && ids.size < total) notes.push(`AMC reported ${total} showtimes, ${ids.size} received`);
+  if (!items.length) throw new Error(`no showtimes returned for ${slug} (theatre ${th.id}, count ${total})`);
+  const days = buildDays(items);
+  if (!days[today]) notes.push('no showtimes today');
+  return { days, soon: [], notes, name: th.longName || th.name || slug, theatreId: th.id, showtimes: items.length, skipped, pages };
 }
 
 // Angelika Pop-Up: render its own page and keep the schedule JSON the page itself loads.
@@ -623,6 +640,16 @@ async function main() {
 
   // Plain HTTP sources first.
   await run('alamo', async () => { const r = await scrapeAlamo(); Object.assign(results, r); return Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v.error || `${countFilms(v.days)} films today, ${Object.keys(v.days).length} days`])); });
+  await run('amc', async () => {
+    const sum = {};
+    for (const [tid, slug] of Object.entries(AMC_THEATERS)) {
+      try { const r = await scrapeAmcTheater(slug); results[tid] = { days: r.days, soon: r.soon, notes: r.notes }; sum[tid] = `${r.name} (#${r.theatreId}): ${countFilms(r.days)} films today, ${Object.keys(r.days).length} days, ${r.showtimes} showtimes${r.skipped ? `, ${r.skipped} skipped` : ''}${r.notes.length ? ', notes: ' + r.notes.join('; ') : ''}`; }
+      catch (e) { const msg = String(e.message || e).slice(0, 300); results[tid] = { error: msg }; sum[tid] = 'FAILED ' + msg; }
+      await sleep(500);
+    }
+    if (Object.keys(AMC_THEATERS).every(t => results[t].error)) throw new Error('all three AMC theaters failed: ' + JSON.stringify(sum));
+    return sum;
+  });
   await run('miracle', async () => { const r = await scrapeMiracle(); results.miracle = r; return { events: r.events, days: Object.keys(r.days).length, today: countFilms(r.days) }; });
   await run('suns', async () => { const r = await scrapeSuns(); results.suns = r; return { events: r.events, filmPages: r.filmPages, days: Object.keys(r.days).length, today: countFilms(r.days) }; });
   await run('cinemaclock', async () => {
@@ -634,21 +661,10 @@ async function main() {
 
   // Browser sources.
   let browser = null, ctx = null;
-  if (['fever', 'angelika', 'afi', '4eye', 'smithsonian'].some(want)) {
+  if (['angelika', 'afi', '4eye', 'smithsonian'].some(want)) {
     browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH || undefined });
     ctx = await browser.newContext({ timezoneId: ET, locale: 'en-US', viewport: { width: 1366, height: 900 } });
   }
-  await run('fever', async () => {
-    const sum = {}; let blocked = null;
-    for (const [tid, slug] of Object.entries(FEVER_THEATERS)) {
-      if (blocked) { results[tid] = { error: blocked, blocked: true }; sum[tid] = 'skipped (blocked)'; continue; }
-      try { const r = await scrapeFeverTheater(ctx, slug); results[tid] = r; sum[tid] = `${countFilms(r.days)} films today, ${r.datesRead} dates read${r.notes.length ? ', notes: ' + r.notes.join('; ') : ''}`; }
-      catch (e) { const msg = String(e.message || e).slice(0, 300); results[tid] = { error: msg, blocked: e instanceof BlockedError }; sum[tid] = 'FAILED ' + msg; if (e instanceof BlockedError) blocked = msg; }
-      await sleep(PAUSE_MS);
-    }
-    if (FEVER_THEATERS && Object.keys(FEVER_THEATERS).every(t => results[t].error)) throw (blocked ? new BlockedError(blocked) : new Error('all three AMC theaters failed: ' + JSON.stringify(sum)));
-    return sum;
-  });
   await run('angelika', async () => { const r = await scrapeAngelika(ctx); results.angelika = r; return { today: countFilms(r.days), days: Object.keys(r.days).length, soon: r.soon.length }; });
   await run('afi', async () => {
     const page = await openPage(ctx, URLS.afi);
